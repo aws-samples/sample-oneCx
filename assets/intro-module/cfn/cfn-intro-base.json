@@ -1,0 +1,199 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Base infrastructure for the application",
+  "Parameters": {
+    "VpcCidr": {
+      "Type": "String",
+      "Description": "CIDR block for the VPC"
+    },
+    "S3BucketName": {
+      "Type": "String",
+      "Description": "Name of the S3 bucket containing the nested templates"
+    }, 
+    "S3BucketPrefix": {
+      "Type": "String",
+      "Description": "Name of the S3 bucket Prefix containing the nested templates"
+    }
+  },
+  "Resources": {
+    
+    "Tlc302VPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": {"Ref": "VpcCidr"},
+        "EnableDnsHostnames": true,
+        "EnableDnsSupport": true,
+        "InstanceTenancy": "default",
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "tlc302-vpc"
+          }
+        ]
+      }
+    },
+    "Tlc302PublicSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {"Ref": "Tlc302VPC"},
+        "AvailabilityZone": {"Fn::Select": [0, {"Fn::GetAZs": ""}]},
+        "CidrBlock": "10.0.0.0/24",
+        "MapPublicIpOnLaunch": true,
+        "Tags": [{"Key": "Name", "Value": "tlc302-public-1"}]
+      }
+    },
+    "Tlc302PrivateSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {"Ref": "Tlc302VPC"},
+        "AvailabilityZone": {"Fn::Select": [0, {"Fn::GetAZs": ""}]},
+        "CidrBlock": "10.0.1.0/24",
+        "MapPublicIpOnLaunch": false,
+        "Tags": [{"Key": "Name", "Value": "tlc302-private-1"}]
+      }
+    },
+    "Tlc302PublicSubnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {"Ref": "Tlc302VPC"},
+        "AvailabilityZone": {"Fn::Select": [1, {"Fn::GetAZs": ""}]},
+        "CidrBlock": "10.0.2.0/24",
+        "MapPublicIpOnLaunch": true,
+        "Tags": [{"Key": "Name", "Value": "tlc302-public-2"}]
+      }
+    },
+    "Tlc302PrivateSubnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {"Ref": "Tlc302VPC"},
+        "AvailabilityZone": {"Fn::Select": [1, {"Fn::GetAZs": ""}]},
+        "CidrBlock": "10.0.3.0/24",
+        "MapPublicIpOnLaunch": false,
+        "Tags": [{"Key": "Name", "Value": "tlc302-private-2"}]
+      }
+    },
+    "Tlc302InternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {
+        "Tags": [{"Key": "Name", "Value": "tlc302-internet-gateway"}]
+      }
+    },
+    "Tlc302InternetGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {"Ref": "Tlc302VPC"},
+        "InternetGatewayId": {"Ref": "Tlc302InternetGateway"}
+      }
+    },
+    "Tlc302NatGateway": {
+      "Type": "AWS::EC2::NatGateway",
+      "Properties": {
+        "AllocationId": {"Fn::GetAtt": ["Tlc302NatGatewayEIP", "AllocationId"]},
+        "SubnetId": {"Ref": "Tlc302PublicSubnet1"}
+      }
+    },
+    "Tlc302NatGatewayEIP": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "Tlc302PrivateRouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {"Ref": "Tlc302VPC"},
+        "Tags": [{"Key": "Name", "Value": "tlc302-private-route-table"}]
+      }
+    },
+    "Tlc302PublicRouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {"Ref": "Tlc302VPC"},
+        "Tags": [{"Key": "Name", "Value": "tlc302-public-route-table"}]
+      }
+    },
+    "Tlc302PublicSubnet1RouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {"Ref": "Tlc302PublicRouteTable"},
+        "SubnetId": {"Ref": "Tlc302PublicSubnet1"}
+      }
+    },
+    "Tlc302PublicSubnet2RouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {"Ref": "Tlc302PublicRouteTable"},
+        "SubnetId": {"Ref": "Tlc302PublicSubnet2"}
+      }
+    },
+    "Tlc302PrivateRoute": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {"Ref": "Tlc302PrivateRouteTable"},
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NatGatewayId": {"Ref": "Tlc302NatGateway"}
+      }
+    },
+    "Tlc302PublicRoute": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {"Ref": "Tlc302PublicRouteTable"},
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {"Ref": "Tlc302InternetGateway"}
+      }
+    },
+    "Tlc302PrivateSubnetRouteTableAssociation1": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {"Ref": "Tlc302PrivateRouteTable"},
+        "SubnetId": {"Ref": "Tlc302PrivateSubnet1"}
+      }
+    },
+    "Tlc302PrivateSubnetRouteTableAssociation2": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {"Ref": "Tlc302PrivateRouteTable"},
+        "SubnetId": {"Ref": "Tlc302PrivateSubnet2"}
+      }
+    },
+    "Tlc302Psycopg2Layer": {
+      "Type": "AWS::Lambda::LayerVersion",
+      "Properties": {
+        "Content": {
+          "S3Bucket": {"Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}intro-module/lambda_layer/psycopg2-layer-311.zip"}
+        },
+        "Description": "Psycopg2 for Python 3.11",
+        "CompatibleRuntimes": ["python3.11"]
+      }
+    }
+  },
+  "Outputs": {
+    
+    "VpcId": {
+      "Description": "VPC ID",
+      "Value": {"Ref": "Tlc302VPC"},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-VpcId"}}
+    },
+    "VpcCidrBlock": {
+      "Description": "VPC CIDR Block",
+      "Value": {"Fn::GetAtt": ["Tlc302VPC", "CidrBlock"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-VpcCidrBlock"}}
+    },
+    "PrivateSubnet1Id": {
+      "Description": "Private Subnet 1 ID",
+      "Value": {"Ref": "Tlc302PrivateSubnet1"},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-PrivateSubnet1Id"}}
+    },
+    "PrivateSubnet2Id": {
+      "Description": "Private Subnet 2 ID",
+      "Value": {"Ref": "Tlc302PrivateSubnet2"},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-PrivateSubnet2Id"}}
+    },
+    "Psycopg2LayerArn": {
+      "Description": "ARN of the Psycopg2 Lambda Layer",
+      "Value": {"Ref": "Tlc302Psycopg2Layer"},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-Psycopg2LayerArn"}}
+    }
+  }
+}

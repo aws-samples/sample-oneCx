@@ -1,0 +1,72 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "DynamoDB stack with single primary key of number type",
+  "Parameters": {
+    "EnvironmentName": {
+      "Type": "String",
+      "Default": "Dev"
+    },
+    "TableName": {
+      "Type": "String",
+      "Default": "wireless_customers_authn"
+    },
+    "ReadCapacityUnits": {
+      "Type": "Number",
+      "Default": "5"
+    },
+    "WriteCapacityUnits": {
+      "Type": "Number",
+      "Default": "5"
+    }
+  },
+  "Resources": {
+    "DynamoDBTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": {"Fn::Sub": "${EnvironmentName}-${TableName}"},
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "customer_mobile_number",
+            "AttributeType": "N"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "customer_mobile_number",
+            "KeyType": "HASH"
+          }
+        ],
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": {"Ref": "ReadCapacityUnits"},
+          "WriteCapacityUnits": {"Ref": "WriteCapacityUnits"}
+        }
+      }
+    },
+    "StackNameParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": {"Fn::Sub": "/DynamoDB/${EnvironmentName}/StackName"},
+        "Type": "String",
+        "Value": {"Ref": "AWS::StackName"}
+      }
+    },
+    "TableNameParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": {"Fn::Sub": "/DynamoDB/${EnvironmentName}/TableName"},
+        "Type": "String",
+        "Value": {"Ref": "DynamoDBTable"}
+      }
+    }
+  },
+  "Outputs": {
+    "StackName": {
+      "Description": "The name of this stack",
+      "Value": {"Ref": "AWS::StackName"}
+    },
+    "TableName": {
+      "Description": "Name of the DynamoDB table",
+      "Value": {"Ref": "DynamoDBTable"}
+    }
+  }
+}

@@ -1,0 +1,696 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Combined CloudFormation template for S3, Lambda, ECR, CodePipeline and CodeBuild'
+
+Parameters:
+  SourceS3BucketName:
+    Type: String
+    Description: 'Source S3 bucket name'
+
+  SourceFileName:
+    Type: String
+    Default: 'mao25.zip'
+    Description: 'Source file name to be copied'
+
+  SourceS3ObjectKey:
+    Type: String
+    Description: S3 object key for the source code zip file (e.g., lambda/code.zip)
+
+Resources:
+  # S3 Bucket with unique name and versioning
+  MyS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - !Ref AWS::StackName
+          - 'bucket'
+          - !Ref AWS::AccountId
+          - !Ref AWS::Region
+          - !Select [4, !Split ['-', !Ref AWS::StackId]]
+      VersioningConfiguration:
+        Status: Enabled
+
+  # Store bucket name in Parameter Store
+  BucketNameParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Name: !Sub '/my-app/${AWS::StackName}/s3-bucket-name'
+      Type: 'String'
+      Value: !Ref MyS3Bucket
+
+  # IAM Role for Lambda
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-s3-access-policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                    - 's3:CreateBucket'
+                    - 's3:DeleteBucket'
+                    - 's3:DeleteObject'
+                    - 's3:DeleteObjectVersion'
+                    - 's3:GetBucketAcl'
+                    - 's3:GetBucketCORS'
+                    - 's3:GetBucketLocation'
+                    - 's3:GetBucketLogging'
+                    - 's3:GetBucketNotification'
+                    - 's3:GetBucketPolicy'
+                    - 's3:GetBucketTagging'
+                    - 's3:GetBucketVersioning'
+                    - 's3:GetBucketWebsite'
+                    - 's3:GetLifecycleConfiguration'
+                    - 's3:GetObject'
+                    - 's3:GetObjectAcl'
+                    - 's3:GetObjectTagging'
+                    - 's3:GetObjectVersion'
+                    - 's3:GetObjectVersionAcl'
+                    - 's3:GetObjectVersionTagging'
+                    - 's3:ListBucket'
+                    - 's3:ListBucketMultipartUploads'
+                    - 's3:ListBucketVersions'
+                    - 's3:ListMultipartUploadParts'
+                    - 's3:PutBucketAcl'
+                    - 's3:PutBucketCORS'
+                    - 's3:PutBucketLogging'
+                    - 's3:PutBucketNotification'
+                    - 's3:PutBucketPolicy'
+                    - 's3:PutBucketTagging'
+                    - 's3:PutBucketVersioning'
+                    - 's3:PutBucketWebsite'
+                    - 's3:PutObject'
+                    - 's3:PutObjectAcl'
+                    - 's3:PutObjectTagging'
+                    - 's3:PutObjectVersionAcl'
+                    - 's3:PutObjectVersionTagging'
+                    - 's3:RestoreObject'
+                Resource: 
+                  - !Sub 'arn:aws:s3:::${SourceS3BucketName}'
+                  - !Sub 'arn:aws:s3:::${SourceS3BucketName}/*'
+              - Effect: Allow
+                Action:
+                    - 's3:CreateBucket'
+                    - 's3:DeleteBucket'
+                    - 's3:DeleteObject'
+                    - 's3:DeleteObjectVersion'
+                    - 's3:GetBucketAcl'
+                    - 's3:GetBucketCORS'
+                    - 's3:GetBucketLocation'
+                    - 's3:GetBucketLogging'
+                    - 's3:GetBucketNotification'
+                    - 's3:GetBucketPolicy'
+                    - 's3:GetBucketTagging'
+                    - 's3:GetBucketVersioning'
+                    - 's3:GetBucketWebsite'
+                    - 's3:GetLifecycleConfiguration'
+                    - 's3:GetObject'
+                    - 's3:GetObjectAcl'
+                    - 's3:GetObjectTagging'
+                    - 's3:GetObjectVersion'
+                    - 's3:GetObjectVersionAcl'
+                    - 's3:GetObjectVersionTagging'
+                    - 's3:ListBucket'
+                    - 's3:ListBucketMultipartUploads'
+                    - 's3:ListBucketVersions'
+                    - 's3:ListMultipartUploadParts'
+                    - 's3:PutBucketAcl'
+                    - 's3:PutBucketCORS'
+                    - 's3:PutBucketLogging'
+                    - 's3:PutBucketNotification'
+                    - 's3:PutBucketPolicy'
+                    - 's3:PutBucketTagging'
+                    - 's3:PutBucketVersioning'
+                    - 's3:PutBucketWebsite'
+                    - 's3:PutObject'
+                    - 's3:PutObjectAcl'
+                    - 's3:PutObjectTagging'
+                    - 's3:PutObjectVersionAcl'
+                    - 's3:PutObjectVersionTagging'
+                    - 's3:RestoreObject'
+                Resource: 
+                  - !Sub 'arn:aws:s3:::${MyS3Bucket}'
+                  - !Sub 'arn:aws:s3:::${MyS3Bucket}/*'
+        - PolicyName: !Sub '${AWS::StackName}-ssm-access-policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ssm:GetParameter'
+                Resource: 
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/my-app/${AWS::StackName}/s3-bucket-name'
+
+  # Additional policy for Lambda
+  SourceCodeLambdaRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+                    - 's3:CreateBucket'
+                    - 's3:DeleteBucket'
+                    - 's3:DeleteObject'
+                    - 's3:DeleteObjectVersion'
+                    - 's3:GetBucketAcl'
+                    - 's3:GetBucketCORS'
+                    - 's3:GetBucketLocation'
+                    - 's3:GetBucketLogging'
+                    - 's3:GetBucketNotification'
+                    - 's3:GetBucketPolicy'
+                    - 's3:GetBucketTagging'
+                    - 's3:GetBucketVersioning'
+                    - 's3:GetBucketWebsite'
+                    - 's3:GetLifecycleConfiguration'
+                    - 's3:GetObject'
+                    - 's3:GetObjectAcl'
+                    - 's3:GetObjectTagging'
+                    - 's3:GetObjectVersion'
+                    - 's3:GetObjectVersionAcl'
+                    - 's3:GetObjectVersionTagging'
+                    - 's3:ListBucket'
+                    - 's3:ListBucketMultipartUploads'
+                    - 's3:ListBucketVersions'
+                    - 's3:ListMultipartUploadParts'
+                    - 's3:PutBucketAcl'
+                    - 's3:PutBucketCORS'
+                    - 's3:PutBucketLogging'
+                    - 's3:PutBucketNotification'
+                    - 's3:PutBucketPolicy'
+                    - 's3:PutBucketTagging'
+                    - 's3:PutBucketVersioning'
+                    - 's3:PutBucketWebsite'
+                    - 's3:PutObject'
+                    - 's3:PutObjectAcl'
+                    - 's3:PutObjectTagging'
+                    - 's3:PutObjectVersionAcl'
+                    - 's3:PutObjectVersionTagging'
+                    - 's3:RestoreObject'
+            Effect: Allow
+            Resource: "*"
+        Version: "2012-10-17"
+      PolicyName: SourceCodeLambdaRolePolicy
+      Roles:
+        - Ref: LambdaExecutionRole
+
+  # Lambda function to copy file
+  CopyFileFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-copy-file-function'
+      Handler: 'index.lambda_handler'
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: 'python3.12'
+      Timeout: 120
+      Code:
+        ZipFile: !Sub |
+          import boto3
+          import cfnresponse
+
+          def lambda_handler(event, context):
+            s3 = boto3.client('s3')
+            ssm = boto3.client('ssm')
+
+            source_bucket = '${SourceS3BucketName}'
+            source_key = '${SourceS3ObjectKey}mao25.zip'
+            
+            try:
+              response = ssm.get_parameter(Name='/my-app/${AWS::StackName}/s3-bucket-name')
+              dest_bucket = response['Parameter']['Value']
+              
+              dest_key = '${SourceFileName}'
+
+              s3.copy_object(
+                CopySource={'Bucket': source_bucket, 'Key': source_key},
+                Bucket=dest_bucket,
+                Key=dest_key
+              )
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {"message": "File copied successfully"})
+            except Exception as e:
+              print(str(e))
+              cfnresponse.send(event, context, cfnresponse.FAILED, {"message": "File copy failed"})
+
+  # Custom resource to trigger Lambda function
+  TriggerLambdaFunction:
+    Type: 'Custom::TriggerLambda'
+    Properties:
+      ServiceToken: !GetAtt CopyFileFunction.Arn
+
+  # S3 Bucket for CodePipeline artifacts
+  PipelineArtifactsBucket:
+    Type: AWS::S3::Bucket
+    DependsOn: TriggerLambdaFunction
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-artifacts-${AWS::AccountId}-${AWS::Region}
+      VersioningConfiguration:
+        Status: Enabled
+
+  # ECR Repository
+  ECRRepository:
+    Type: AWS::ECR::Repository
+    DependsOn: TriggerLambdaFunction
+    Properties:
+      RepositoryName: !Sub ${AWS::StackName}-repo
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  # IAM Role for CodeBuild
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildServiceRolePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:GetObjectVersion'
+                  - 's3:PutObject'
+                Resource:
+                  - !Sub arn:aws:s3:::${MyS3Bucket}/*
+                  - !Sub arn:aws:s3:::${PipelineArtifactsBucket}/*
+              - Effect: Allow
+                Action:
+                  - 'ecr:GetAuthorizationToken'
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:GetRepositoryPolicy'
+                  - 'ecr:DescribeRepositories'
+                  - 'ecr:ListImages'
+                  - 'ecr:DescribeImages'
+                  - 'ecr:BatchGetImage'
+                  - 'ecr:InitiateLayerUpload'
+                  - 'ecr:UploadLayerPart'
+                  - 'ecr:CompleteLayerUpload'
+                  - 'ecr:PutImage'
+                Resource: '*'
+
+  # CodeBuild Project
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    DependsOn: TriggerLambdaFunction
+    Properties:
+      Name: !Sub ${AWS::StackName}-build
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
+          - Name: AWS_ACCOUNT_ID
+            Value: !Ref AWS::AccountId
+          - Name: ECR_REPOSITORY_NAME
+            Value: !Ref ECRRepository
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec.yml
+      TimeoutInMinutes: 10
+
+  # IAM Role for CodePipeline
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodePipelineServiceRolePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:GetObjectVersion'
+                  - 's3:GetBucketVersioning'
+                  - 's3:PutObject'
+                Resource:
+                  - !Sub arn:aws:s3:::${MyS3Bucket}/*
+                  - !Sub arn:aws:s3:::${MyS3Bucket}
+                  - !Sub arn:aws:s3:::${PipelineArtifactsBucket}/*
+                  - !Sub arn:aws:s3:::${PipelineArtifactsBucket}
+              - Effect: Allow
+                Action:
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: 
+                  - !GetAtt CodeBuildServiceRole.Arn
+                  - !GetAtt CloudFormationExecutionRole.Arn
+                Condition:
+                    StringEquals:
+                      iam:PassedToService:
+                        - lambda.amazonaws.com
+                        - codebuild.amazonaws.com
+                        - codedeploy.amazonaws.com
+                        - codepipeline.amazonaws.com
+                        - cloudformation.amazonaws.com
+                        - apigateway.amazonaws.com
+                        - secretsmanager.amazonaws.com
+                        - ssm.amazonaws.com
+                        - iam.amazonaws.com
+                        - ecr.amazonaws.com
+                        - logs.amazonaws.com
+                        - s3.amazonaws.com   
+              - Effect: Allow
+                Action:
+                  - 'sns:Publish'
+                  - 'sns:Subscribe'
+                  - 'sns:Unsubscribe'
+                  - 'sns:ListTopics'
+                  - 'sns:ListSubscriptions'
+                  - 'cloudwatch:PutMetricData'
+                  - 'cloudwatch:GetMetricStatistics'
+                  - 'cloudwatch:ListMetrics'
+                  - 'cloudwatch:DescribeAlarms'
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                  - 'logs:DescribeLogStreams'
+                  - 'logs:GetLogEvents'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'cloudformation:CreateStack'
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudformation:DeleteStack'
+                  - 'cloudformation:UpdateStack'
+                  - 'cloudformation:CreateChangeSet'
+                  - 'cloudformation:ExecuteChangeSet'
+                  - 'cloudformation:DeleteChangeSet'
+                  - 'cloudformation:DescribeChangeSet'
+                  - 'cloudformation:SetStackPolicy'
+                  - 'cloudformation:ValidateTemplate'
+                Resource: '*'
+
+  # CloudFormation execution role
+  CloudFormationExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudFormationExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:GetTemplate
+                  - cloudformation:ValidateTemplate
+                  - cloudformation:ListStacks
+                  - cloudformation:ListStackResources
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:ListChangeSets
+                  - cloudformation:ContinueUpdateRollback
+                  - cloudformation:CreateStackInstances
+                  - cloudformation:DeleteStackInstances
+                  - cloudformation:DescribeStackInstance
+                  - cloudformation:DescribeStackSetOperation
+                  - cloudformation:ListStackInstances
+                  - cloudformation:UpdateStackInstances
+                  - cloudformation:CreateStackSet
+                  - cloudformation:DeleteStackSet
+                  - cloudformation:UpdateStackSet
+                  - cloudformation:ListStackSets
+                  - cloudformation:DescribeStackSet
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:SetStackPolicy
+                  - 's3:CreateBucket'
+                  - 's3:DeleteBucket'
+                  - 's3:DeleteObject'
+                  - 's3:DeleteObjectVersion'
+                  - 's3:GetBucketAcl'
+                  - 's3:GetBucketCORS'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetBucketLogging'
+                  - 's3:GetBucketNotification'
+                  - 's3:GetBucketPolicy'
+                  - 's3:GetBucketTagging'
+                  - 's3:GetBucketVersioning'
+                  - 's3:GetBucketWebsite'
+                  - 's3:GetLifecycleConfiguration'
+                  - 's3:GetObject'
+                  - 's3:GetObjectAcl'
+                  - 's3:GetObjectTagging'
+                  - 's3:GetObjectVersion'
+                  - 's3:GetObjectVersionAcl'
+                  - 's3:GetObjectVersionTagging'
+                  - 's3:ListBucket'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:ListBucketVersions'
+                  - 's3:ListMultipartUploadParts'
+                  - 's3:PutBucketAcl'
+                  - 's3:PutBucketCORS'
+                  - 's3:PutBucketLogging'
+                  - 's3:PutBucketNotification'
+                  - 's3:PutBucketPolicy'
+                  - 's3:PutBucketTagging'
+                  - 's3:PutBucketVersioning'
+                  - 's3:PutBucketWebsite'
+                  - 's3:PutObject'
+                  - 's3:PutObjectAcl'
+                  - 's3:PutObjectTagging'
+                  - 's3:PutObjectVersionAcl'
+                  - 's3:PutObjectVersionTagging'
+                  - 's3:RestoreObject'   
+                Resource: '*'
+      ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AWSLambda_FullAccess
+          - arn:aws:iam::aws:policy/AmazonAPIGatewayAdministrator
+          - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+          - arn:aws:iam::aws:policy/SecretsManagerReadWrite
+          - arn:aws:iam::aws:policy/AWSCodeDeployFullAccess
+          - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+          - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
+          - arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess
+          - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+          - arn:aws:iam::aws:policy/IAMFullAccess
+
+  # CodePipeline
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    DependsOn: TriggerLambdaFunction
+    Properties:
+      Name: !Sub ${AWS::StackName}-pipeline
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref PipelineArtifactsBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                S3Bucket: !Ref MyS3Bucket
+                S3ObjectKey: 'mao25.zip'
+              OutputArtifacts:
+                - Name: SourceOutput
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: DeployMAOStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                RoleArn: !GetAtt CloudFormationExecutionRole.Arn
+                StackName: MAOStack
+                TemplatePath: SourceOutput::mao.yml
+                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM
+                ParameterOverrides: !Sub |
+                  {
+                    "ECRRepositoryName": "${ECRRepository}"
+                  }
+              InputArtifacts:
+                - Name: SourceOutput
+              RunOrder: 1
+
+  PipelineWaiterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt PipelineWaiterRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          import time
+
+          def handler(event, context):
+              if event['RequestType'] in ['Create', 'Update']:
+                  try:
+                      pipeline_name = event['ResourceProperties']['PipelineName']
+                      codepipeline = boto3.client('codepipeline')
+                      
+                      # Wait for pipeline to complete (max 30 minutes)
+                      timeout = time.time() + 30 * 60
+                      while time.time() < timeout:
+                          response = codepipeline.get_pipeline_state(name=pipeline_name)
+                          
+                          # Check if any stage is in progress
+                          in_progress = False
+                          failed = False
+                          
+                          for stage in response['stageStates']:
+                              if stage['latestExecution'].get('status') == 'InProgress':
+                                  in_progress = True
+                                  break
+                              elif stage['latestExecution'].get('status') == 'Failed':
+                                  failed = True
+                                  break
+                          
+                          if failed:
+                              cfnresponse.send(event, context, cfnresponse.FAILED, 
+                                             {'Error': 'Pipeline execution failed'})
+                              return
+                          
+                          if not in_progress:
+                              cfnresponse.send(event, context, cfnresponse.SUCCESS, 
+                                             {'Message': 'Pipeline completed successfully'})
+                              return
+                          
+                          time.sleep(30)  # Check every 30 seconds
+                      
+                      # If we get here, we timed out
+                      cfnresponse.send(event, context, cfnresponse.FAILED, 
+                                     {'Error': 'Pipeline execution timed out'})
+                  
+                  except Exception as e:
+                      cfnresponse.send(event, context, cfnresponse.FAILED, 
+                                     {'Error': str(e)})
+              else:
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, 
+                                 {'Message': 'Delete request handled'})
+      Runtime: python3.9
+      Timeout: 900  # 15 minutes
+      MemorySize: 128
+
+  # IAM role for the Lambda function
+  PipelineWaiterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CodePipelineAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codepipeline:GetPipelineState
+                Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${CodePipeline}
+
+  # Custom resource to wait for pipeline completion
+  PipelineWaiter:
+    Type: Custom::PipelineWaiter
+    DependsOn: CodePipeline
+    Properties:
+      ServiceToken: !GetAtt PipelineWaiterFunction.Arn
+      PipelineName: !Sub ${AWS::StackName}-pipeline
+
+Outputs:
+  BucketName:
+    Description: 'Name of the created S3 bucket'
+    Value: !Ref MyS3Bucket
+
+  ParameterName:
+    Description: 'Name of the Parameter Store parameter'
+    Value: !Sub '/my-app/${AWS::StackName}/s3-bucket-name'
+
+  ECRRepositoryUri:
+    Description: URI of the ECR repository
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepository}
+
+  CodePipelineName:
+    Description: Name of the CodePipeline
+    Value: !Ref CodePipeline
+
+  PipelineArtifactsBucketName:
+    Description: Name of the S3 bucket for CodePipeline artifacts
+    Value: !Ref PipelineArtifactsBucket

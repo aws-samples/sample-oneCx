@@ -1,0 +1,2283 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Lambda functions for the application",
+	"Parameters": {
+		"VpcId": {
+			"Type": "AWS::EC2::VPC::Id",
+			"Description": "VPC ID"
+		},
+		"VpcCidr": {
+			"Type": "String",
+			"Description": "CIDR block for the VPC"
+		},
+		"PrivateSubnet1Id": {
+			"Type": "AWS::EC2::Subnet::Id",
+			"Description": "Private Subnet 1 ID"
+		},
+		"PrivateSubnet2Id": {
+			"Type": "AWS::EC2::Subnet::Id",
+			"Description": "Private Subnet 2 ID"
+		},
+		"S3BucketName": {
+			"Type": "String",
+			"Description": "Name of the S3 bucket containing the nested templates"
+		}, 
+		"S3BucketPrefix": {
+			"Type": "String",
+			"Description": "Name of the S3 bucket Prefix containing the nested templates"
+		},
+		"DatabaseSecretArn": {
+			"Type": "String",
+			"Description": "ARN of the Database Secret"
+		},
+		"Psycopg2LayerArn": {
+			"Type": "String",
+			"Description": "ARN of the Psycopg2 Lambda Layer"
+		},
+		"DatabaseClusterArn": {
+			"Type": "String",
+			"Description": "ARN of the Database Cluster"
+		}
+	},
+	"Resources": {
+		"Tlc302GetCustomerJourneyLambda": {
+			"Type": "AWS::Lambda::Function",
+			"Properties": {
+				"FunctionName": "GetCustomerJourneyLambda",
+				"Runtime": "python3.11",
+				"Handler": "get_customer_journey.handler",
+				"Role": {
+					"Fn::GetAtt": [
+						"Tlc302GetCustomerJourneyLambdaRole",
+						"Arn"
+					]
+				},
+				"Code": {
+					"S3Bucket": {
+						"Ref": "S3BucketName"
+					},
+					"S3Key": {"Fn::Sub": "${S3BucketPrefix}intro-module/lambda_function/get_customer_journey.zip"}
+				},
+				"Environment": {
+					"Variables": {
+						"DB_SECRET_ARN": {
+							"Ref": "DatabaseSecretArn"
+						}
+					}
+				},
+				"MemorySize": 512,
+				"Timeout": 300,
+				"VpcConfig": {
+					"SecurityGroupIds": [
+						{
+							"Ref": "Tlc302GetCustomerJourneyLambdaSecurityGroup"
+						}
+					],
+					"SubnetIds": [
+						{
+							"Ref": "PrivateSubnet1Id"
+						},
+						{
+							"Ref": "PrivateSubnet2Id"
+						}
+					]
+				},
+				"Layers": [
+					{
+						"Ref": "Psycopg2LayerArn"
+					}
+				]
+			}
+		},
+		"Tlc302GetCustomerJourneyLambdaRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "lambda.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
+						}
+					]
+				},
+				"ManagedPolicyArns": [
+					"arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+				],
+				"Policies": [
+					{
+						"PolicyName": "Tlc302GetCustomerJourneyLambdaPolicy",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [
+								{
+									"Effect": "Allow",
+									"Action": [
+										"logs:CreateLogGroup",
+										"logs:CreateLogStream",
+										"logs:PutLogEvents"
+									],
+									"Resource": "arn:aws:logs:*:*:*"
+								},
+								{
+									"Effect": "Allow",
+									"Action": [
+										"rds-data:ExecuteStatement",
+										"rds-data:BatchExecuteStatement",
+										"rds-data:BeginTransaction",
+										"rds-data:CommitTransaction",
+										"rds-data:RollbackTransaction"
+									],
+									"Resource": {
+										"Fn::Sub": "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DatabaseClusterArn}"
+									}
+								},
+								{
+									"Effect": "Allow",
+									"Action": [
+										"secretsmanager:GetSecretValue",
+										"secretsmanager:DescribeSecret"
+									],
+									"Resource": {
+										"Ref": "DatabaseSecretArn"
+									}
+								}
+							]
+						}
+					}
+				]
+			}
+		},
+		"Tlc302GetCustomerJourneyLambdaSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Security group for GetCustomerJourney Lambda function",
+				"VpcId": {
+					"Ref": "VpcId"
+				},
+				"SecurityGroupIngress": [],
+				"SecurityGroupEgress": [
+					{
+						"IpProtocol": "-1",
+						"FromPort": -1,
+						"ToPort": -1,
+						"CidrIp": "0.0.0.0/0"
+					}
+				]
+			}
+		},
+		"Tlc302DataLoaderLambda": {
+			"Type": "AWS::Lambda::Function",
+			"Properties": {
+			  "FunctionName": "DataLoaderLambda",
+			  "Runtime": "python3.11",
+			  "Handler": "dataloadernew.handler",
+			  "Role": {"Fn::GetAtt": ["Tlc302GetCustomerJourneyLambdaRole", "Arn"]},
+			  "Code": {
+				"S3Bucket": {"Ref": "S3BucketName"},
+				"S3Key": {"Fn::Sub": "${S3BucketPrefix}intro-module/lambda_function/dataloadernew.zip"}
+			  },
+			  "MemorySize": 512,
+			  "Timeout": 300,
+			  "VpcConfig": {
+				"SecurityGroupIds": [{"Ref": "Tlc302GetCustomerJourneyLambdaSecurityGroup"}],
+				"SubnetIds": [{"Ref": "PrivateSubnet1Id"}, {"Ref": "PrivateSubnet2Id"}]
+			  },
+			  "Layers": [{"Ref": "Psycopg2LayerArn"}],
+			  "Environment": {
+				"Variables": {
+				  "DB_SECRET_ARN": {"Ref": "DatabaseSecretArn"}   
+				}
+			  }
+			}
+		  },
+		"Tlc302PromptFlowLambda": {
+			"Type": "AWS::Lambda::Function",
+			"Properties": {
+				"FunctionName": "PromptFlowLambda",
+			  	"Runtime": "python3.11",
+			  	"Handler": "promptflow.handler",
+			  	"Role": {
+					"Fn::GetAtt": [
+				  	"Tlc302GetCustomerJourneyToBedrockRole",   
+				  	"Arn"
+				]
+			  },
+			  	"Code": {
+					"S3Bucket": {"Ref": "S3BucketName"},
+					"S3Key": {"Fn::Sub": "${S3BucketPrefix}intro-module/lambda_function/promptflow.zip"}
+			  	},
+			  	"MemorySize": 512,
+			  	"Timeout": 300,
+			  	"VpcConfig": {
+					"SecurityGroupIds": [{"Ref": "Tlc302GetCustomerJourneyLambdaSecurityGroup"}],
+					"SubnetIds": [{"Ref": "PrivateSubnet1Id"},{"Ref": "PrivateSubnet2Id"}]
+			  }
+			}
+		  },
+		"Tlc302DbTriggerLambda": {
+			"Type": "AWS::Lambda::Function",
+			"Properties": {
+			  	"FunctionName": "DbTriggerLambda",
+			  	"Runtime": "python3.11",
+			  	"Handler": "dbtrigger.handler",
+			  	"Role": {"Fn::GetAtt": ["Tlc302GetCustomerJourneyLambdaRole", "Arn"]},
+			  	"Code": {
+					"S3Bucket": {"Ref": "S3BucketName"},
+					"S3Key": {"Fn::Sub": "${S3BucketPrefix}intro-module/lambda_function/dbtrigger.zip"}
+			  	},
+			  	"MemorySize": 512,
+			  	"Timeout": 300,
+			  	"VpcConfig": {
+					"SecurityGroupIds": [{"Ref": "Tlc302GetCustomerJourneyLambdaSecurityGroup"}],
+					"SubnetIds": [{"Ref": "PrivateSubnet1Id"}, {"Ref": "PrivateSubnet2Id"}]
+			  	},
+			  	"Layers": [{"Ref": "Psycopg2LayerArn"}],
+			  	"Environment": {
+					"Variables": {
+				  		"DB_SECRET_ARN": {"Ref": "DatabaseSecretArn"},
+				  		"FUNCTION_ARN": {"Fn::GetAtt" : ["Tlc302PromptFlowLambda", "Arn"]}   
+					}
+			  	}
+			}
+		  },
+		"Tlc302GetCustomerProfileLambda": {
+			"Type": "AWS::Lambda::Function",
+			"Properties": {
+			  "FunctionName": "GetCustomerProfileLambda",
+			  "Runtime": "python3.11",
+			  "Handler": "get_customer_profile.handler",
+			  "Role": {"Fn::GetAtt": ["Tlc302GetCustomerJourneyLambdaRole", "Arn"]},
+			  "Code": {
+				"S3Bucket": {"Ref": "S3BucketName"},
+				"S3Key": {"Fn::Sub": "${S3BucketPrefix}intro-module/lambda_function/get_customer_profile.zip"}
+			  },
+			  "MemorySize": 512,
+			  "Timeout": 300,
+			  "VpcConfig": {
+				"SecurityGroupIds": [{"Ref": "Tlc302GetCustomerJourneyLambdaSecurityGroup"}],
+				"SubnetIds": [{"Ref": "PrivateSubnet1Id"}, {"Ref": "PrivateSubnet2Id"}]
+			  },
+			  "Layers": [{"Ref": "Psycopg2LayerArn"}],
+			  "Environment": {
+				"Variables": {
+				  "DB_SECRET_ARN": {"Ref": "DatabaseSecretArn"}  
+				}
+			  }
+			}
+		  },
+		
+		"GetCustomerJourneyAPIGateway": {
+			"Type": "AWS::ApiGateway::RestApi",
+			"Properties": {
+				"Name": "GetCustomerJourneyAPIGateway",
+				"Description": "API Gateway for TLC302 Project Get Customer Journey",
+				"ApiKeySourceType": "HEADER"
+			}
+		},
+		"GetCustomerProfileAPIGateway": {
+            "Type": "AWS::ApiGateway::RestApi",
+            "Properties": {
+                "Name": "GetCustomerProfileAPIGateway",
+                "Description": "API Gateway for TLC302 Project Get Customer Profile",
+                "ApiKeySourceType": "HEADER"
+            }
+        },
+		"GetCustomerJourneyBerockAPIGateway": {
+			"Type": "AWS::ApiGateway::RestApi",
+			"Properties": {
+				"Name": "GetCustomerJourneyBerockAPIGateway",
+				"Description": "API Gateway for TLC302 Project Summarize Customer Journey with Bedrock",
+				"ApiKeySourceType": "HEADER"
+			}
+		},
+		"GetCustomerJourneyChatResponseAPIGateway": {
+			"Type": "AWS::ApiGateway::RestApi",
+			"Properties": {
+				"Name": "GetCustomerJourneyChatResponseAPIGateway",
+				"Description": "API Gateway for TLC302 Project Bedrock Chat Response",
+				"ApiKeySourceType": "HEADER"
+			}
+		},
+        "PutCustomerJourneyAPIGateway": {
+			"Type": "AWS::ApiGateway::RestApi",
+			"Properties": {
+				"Name": "PutCustomerJourneyAPIGateway",
+				"Description": "API Gateway for TLC302 Project Put Customer Journey",
+				"ApiKeySourceType": "HEADER"
+			}
+		},
+        "PutEventTypeAPIGateway": {
+			"Type": "AWS::ApiGateway::RestApi",
+			"Properties": {
+				"Name": "PutEventTypeAPIGateway",
+				"Description": "API Gateway for TLC302 Project Put Event Type",
+				"ApiKeySourceType": "HEADER"
+			}
+		},
+        "GetEventTypeAPIGateway": {
+			"Type": "AWS::ApiGateway::RestApi",
+			"Properties": {
+				"Name": "GetEventTypeAPIGateway",
+				"Description": "API Gateway for TLC302 Project Get Event Type",
+				"ApiKeySourceType": "HEADER"
+			}
+		},
+
+		"GetCustomerJourneyLambdaPermission": {
+			"Type": "AWS::Lambda::Permission",
+			"DependsOn": [
+				"GetCustomerJourneyAPIGatewayDeployment"
+			],
+			"Properties": {
+				"FunctionName": {
+					"Fn::GetAtt": [
+						"Tlc302GetCustomerJourneyLambda",
+						"Arn"
+					]
+				},
+				"Action": "lambda:InvokeFunction",
+				"Principal": "apigateway.amazonaws.com",
+				"SourceArn": {
+					"Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GetCustomerJourneyAPIGateway}/*/*/get-customer-journey"
+				}
+			}
+		},
+		"GetCustomerProfileLambdaPermission": {
+            "Type": "AWS::Lambda::Permission",
+            "DependsOn": [
+                "GetCustomerProfileAPIGatewayDeployment"
+            ],
+            "Properties": {
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "Tlc302GetCustomerProfileLambda",
+                        "Arn"
+                    ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                    "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GetCustomerProfileAPIGateway}/*/*/get-customer-profile"
+                }
+            }
+        },
+		"GetCustomerJourneyResource": {
+			"Type": "AWS::ApiGateway::Resource",
+			"Properties": {
+				"ParentId": {
+					"Fn::GetAtt": [
+						"GetCustomerJourneyAPIGateway",
+						"RootResourceId"
+					]
+				},
+				"PathPart": "get-customer-journey",
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyAPIGateway"
+				}
+			}
+		},
+		"GetCustomerProfileResource": {
+            "Type": "AWS::ApiGateway::Resource",
+            "Properties": {
+                "ParentId": {
+                    "Fn::GetAtt": [
+                        "GetCustomerProfileAPIGateway",
+                        "RootResourceId"
+                    ]
+                },
+                "PathPart": "get-customer-profile",
+                "RestApiId": {
+                    "Ref": "GetCustomerProfileAPIGateway"
+                }
+            }
+        },
+		"GetCustomerJourneyMethod": {
+			"Type": "AWS::ApiGateway::Method",
+			"DependsOn": [
+				"GetCustomerJourneyResource",
+				"GetCustomerJourneyAPIGateway",
+				"Tlc302GetCustomerJourneyLambda"
+			],
+			"Properties": {
+				"ApiKeyRequired": true,
+				"AuthorizationType": "NONE",
+				"HttpMethod": "GET",
+				"Integration": {
+					"IntegrationHttpMethod": "POST",
+					"Type": "AWS_PROXY",
+					"Uri": {
+						"Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Tlc302GetCustomerJourneyLambda.Arn}/invocations"
+					}
+				},
+				"ResourceId": {
+					"Ref": "GetCustomerJourneyResource"
+				},
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyAPIGateway"
+				}
+			}
+		},
+		"GetCustomerJourneyOptionsMethod": {
+			"Type": "AWS::ApiGateway::Method",
+			"Properties": {
+			"ApiKeyRequired": false,
+			"AuthorizationType": "NONE",
+			"HttpMethod": "OPTIONS",
+			"Integration": {
+				"IntegrationResponses": [
+				{
+					"ResponseParameters": {
+					"method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'",
+					"method.response.header.Access-Control-Allow-Origin": "'*'",
+					"method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+					"method.response.header.Access-Control-Allow-Credentials": "'true'"
+					},
+					"StatusCode": "204"
+				}
+				],
+				"RequestTemplates": {
+				"application/json": "{ statusCode: 200 }"
+				},
+				"Type": "MOCK"
+			},
+			"MethodResponses": [
+				{
+				"ResponseParameters": {
+					"method.response.header.Access-Control-Allow-Headers": true,
+					"method.response.header.Access-Control-Allow-Origin": true,
+					"method.response.header.Access-Control-Allow-Methods": true,
+					"method.response.header.Access-Control-Allow-Credentials": true
+				},
+				"StatusCode": "204"
+				}
+			],
+			"ResourceId": {
+				"Ref": "GetCustomerJourneyResource"
+			},
+			"RestApiId": {
+				"Ref": "GetCustomerJourneyAPIGateway"
+			}
+			}
+		},
+		"GetCustomerProfileMethod": {
+            "Type": "AWS::ApiGateway::Method",
+            "DependsOn": [
+                "GetCustomerProfileResource",
+                "GetCustomerProfileAPIGateway",
+                "Tlc302GetCustomerProfileLambda"
+            ],
+            "Properties": {
+                "ApiKeyRequired": true,
+                "AuthorizationType": "NONE",
+                "HttpMethod": "GET",
+                "Integration": {
+                    "IntegrationHttpMethod": "POST",
+                    "Type": "AWS_PROXY",
+                    "Uri": {
+                        "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Tlc302GetCustomerProfileLambda.Arn}/invocations"
+                    }
+                },
+                "ResourceId": {
+                    "Ref": "GetCustomerProfileResource"
+                },
+                "RestApiId": {
+                    "Ref": "GetCustomerProfileAPIGateway"
+                }
+            }
+        },
+		"GetCustomerProfileOptionsMethod": {
+			"Type": "AWS::ApiGateway::Method",
+			"Properties": {
+			"ApiKeyRequired": false,
+			"AuthorizationType": "NONE",
+			"HttpMethod": "OPTIONS",
+			"Integration": {
+				"IntegrationResponses": [
+				{
+					"ResponseParameters": {
+					"method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'",
+					"method.response.header.Access-Control-Allow-Origin": "'*'",
+					"method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+					"method.response.header.Access-Control-Allow-Credentials": "'true'"
+					},
+					"StatusCode": "204"
+				}
+				],
+				"RequestTemplates": {
+				"application/json": "{ statusCode: 200 }"
+				},
+				"Type": "MOCK"
+			},
+			"MethodResponses": [
+				{
+				"ResponseParameters": {
+					"method.response.header.Access-Control-Allow-Headers": true,
+					"method.response.header.Access-Control-Allow-Origin": true,
+					"method.response.header.Access-Control-Allow-Methods": true,
+					"method.response.header.Access-Control-Allow-Credentials": true
+				},
+				"StatusCode": "204"
+				}
+			],
+			"ResourceId": {
+				"Ref": "GetCustomerProfileResource"
+			},
+			"RestApiId": {
+				"Ref": "GetCustomerProfileAPIGateway"
+			}
+			}
+		},
+		"Tlc302GetCustomerJourneyToBedrock": {
+			"Type": "AWS::Lambda::Function",
+			"DependsOn": [
+				"GetCustomerJourneyMethod",
+				"GetCustomerJourneyOptionsMethod"
+			],
+			"Properties": {
+				"FunctionName": "GetCustomerJourneyToBedrock",
+				"Runtime": "python3.11",
+				"Handler": "get_customer_journey_to_bedrock.lambda_handler",
+				"Role": {
+					"Fn::GetAtt": [
+						"Tlc302GetCustomerJourneyToBedrockRole",
+						"Arn"
+					]
+				},
+				"Code": {
+					"S3Bucket": {
+						"Ref": "S3BucketName"
+					},
+					"S3Key": {"Fn::Sub": "${S3BucketPrefix}intro-module/lambda_function/get_customer_journey_to_bedrock.zip"}
+				},
+				"Environment": {
+					"Variables": {
+						"API_ENDPOINT": {
+							"Fn::Sub": "https://${GetCustomerJourneyAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/get-customer-journey"
+						},
+						"GET_CUSTOMER_JOURNEY_API_KEY": {
+							"Ref": "GetCustomerJourneyAPIKey"
+						}
+					}
+				},
+				"MemorySize": 512,
+				"Timeout": 300,
+				"VpcConfig": {
+					"SecurityGroupIds": [
+						{
+							"Ref": "Tlc302GetCustomerJourneyLambdaSecurityGroup"
+						}
+					],
+					"SubnetIds": [
+						{
+							"Ref": "PrivateSubnet1Id"
+						},
+						{
+							"Ref": "PrivateSubnet2Id"
+						}
+					]
+				},
+				"Layers": [
+					{
+						"Ref": "Psycopg2LayerArn"
+					}
+				]
+			}
+		},
+		"Tlc302GetCustomerJourneyToBedrockRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "lambda.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
+						}
+					]
+				},
+				"ManagedPolicyArns": [
+					"arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+				],
+				"Policies": [
+					{
+						"PolicyName": "Tlc302GetCustomerJourneyToBedrockPolicy",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [
+								{
+									"Effect": "Allow",
+									"Action": [
+										"logs:CreateLogGroup",
+										"logs:CreateLogStream",
+										"logs:PutLogEvents",
+										"apigateway:GET",
+										"apigateway:POST",
+										"apigateway:PUT"		
+									],
+									"Resource": [
+										"arn:aws:logs:*:*:*",
+										"arn:aws:apigateway:*:*:*"
+									]
+								},
+								{
+									"Effect": "Allow",
+									"Action": [
+										"bedrock:InvokeModel"
+									],
+									"Resource": "*"
+								}
+							]
+						}
+					}
+				]
+			}
+		},
+		"Tlc302GetCustomerJourneyChatResponseLambda": {
+			"Type": "AWS::Lambda::Function",
+			"DependsOn": [
+				"GetCustomerJourneyMethod",
+				"GetCustomerJourneyOptionsMethod"
+			],
+			"Properties": {
+				"FunctionName": "GetCustomerJourneyChatResponseLambda",
+				"Runtime": "python3.11",
+				"Handler": "get_customer_journey_chat_response.handler",
+				"Role": {
+					"Fn::GetAtt": [
+						"Tlc302GetCustomerJourneyChatResponseLambdaRole",
+						"Arn"
+					]
+				},
+				"Code": {
+					"S3Bucket": {
+						"Ref": "S3BucketName"
+					},
+					"S3Key": {"Fn::Sub": "${S3BucketPrefix}intro-module/lambda_function/get_customer_journey_chat_response.zip"}
+				},
+				"Environment": {
+					"Variables": {
+						"API_ENDPOINT": {
+							"Fn::Sub": "https://${GetCustomerJourneyAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/get-customer-journey"
+						},
+						"GET_CUSTOMER_JOURNEY_API_KEY": {
+							"Ref": "GetCustomerJourneyAPIKey"
+						}
+					}
+				},
+				"MemorySize": 512,
+				"Timeout": 300,
+				"VpcConfig": {
+					"SecurityGroupIds": [
+						{
+							"Ref": "Tlc302GetCustomerJourneyLambdaSecurityGroup"
+						}
+					],
+					"SubnetIds": [
+						{
+							"Ref": "PrivateSubnet1Id"
+						},
+						{
+							"Ref": "PrivateSubnet2Id"
+						}
+					]
+				},
+				"Layers": [
+					{
+						"Ref": "Psycopg2LayerArn"
+					}
+				]
+			}
+		},
+		"Tlc302GetCustomerJourneyChatResponseLambdaRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "lambda.amazonaws.com"
+							},
+							"Action": "sts:AssumeRole"
+						}
+					]
+				},
+				"ManagedPolicyArns": [
+					"arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+				],
+				"Policies": [
+					{
+						"PolicyName": "Tlc302GetCustomerJourneyChatResponseLambdaPolicy",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [
+								{
+									"Effect": "Allow",
+									"Action": [
+										"logs:CreateLogGroup",
+										"logs:CreateLogStream",
+										"logs:PutLogEvents",
+										"apigateway:GET",
+										"apigateway:POST",
+										"apigateway:PUT"
+									],
+									"Resource": [
+										"arn:aws:logs:*:*:*",
+										"arn:aws:apigateway:*:*:*"
+									]
+								},
+								{
+									"Effect": "Allow",
+									"Action": [
+										"bedrock:InvokeModel"
+									],
+									"Resource": "*"
+								}
+							]
+						}
+					}
+				]
+			}
+		},
+        "Tlc302GetEventTypeLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "FunctionName": "GetEventTypeLambda",
+              "Runtime": "python3.11",
+              "Handler": "get_event_type.handler",
+              "Role": {"Fn::GetAtt": ["Tlc302GetEventTypeLambdaRole", "Arn"]},
+              "Code": {
+                "S3Bucket": {"Ref": "S3BucketName"},
+                "S3Key": {"Fn::Sub": "${S3BucketPrefix}intro-module/lambda_function/get_event_type.zip"}
+              },
+              "Environment": {
+                "Variables": {
+                    "API_ENDPOINT": {
+                        "Fn::Sub": "https://${GetCustomerJourneyAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/get-customer-journey"
+                    },
+                    "GET_CUSTOMER_JOURNEY_API_KEY": {
+                        "Ref": "GetCustomerJourneyAPIKey"
+                    },
+                    "DB_SECRET_ARN": {
+                        "Ref": "DatabaseSecretArn"
+                    }
+				}
+              },
+              "MemorySize": 512,
+              "Timeout": 300,
+              "VpcConfig": {
+                "SecurityGroupIds": [{"Ref": "Tlc302GetCustomerJourneyLambdaSecurityGroup"}],
+                "SubnetIds": [{"Ref": "PrivateSubnet1Id"}, {"Ref": "PrivateSubnet2Id"}]
+              },
+              "Layers": [{"Ref": "Psycopg2LayerArn"}]
+            }
+          },
+          "Tlc302GetEventTypeLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+              "AssumeRolePolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {"Service": "lambda.amazonaws.com"},
+                    "Action": "sts:AssumeRole"
+                  }
+                ]
+              },
+              "ManagedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"],
+              "Policies": [
+                {
+                  "PolicyName": "Tlc302GetEventTypeLambdaPolicy",
+                  "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "logs:CreateLogGroup",
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents"
+                            ],
+                            "Resource": "arn:aws:logs:*:*:*"
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "rds-data:ExecuteStatement",
+                                "rds-data:BatchExecuteStatement",
+                                "rds-data:BeginTransaction",
+                                "rds-data:CommitTransaction",
+                                "rds-data:RollbackTransaction"
+                            ],
+                            "Resource": {
+                                "Fn::Sub": "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DatabaseClusterArn}"
+                            }
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "secretsmanager:GetSecretValue",
+                                "secretsmanager:DescribeSecret"
+                            ],
+                            "Resource": {
+                                "Ref": "DatabaseSecretArn"
+                            }
+                        }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "Tlc302PutCustomerJourneyLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "FunctionName": "PutCustomerJourneyLambda",
+              "Runtime": "python3.11",
+              "Handler": "put_customer_journey.handler",
+              "Role": {"Fn::GetAtt": ["Tlc302PutCustomerJourneyLambdaRole", "Arn"]},
+              "Code": {
+                "S3Bucket": {"Ref": "S3BucketName"},
+                "S3Key": {"Fn::Sub": "${S3BucketPrefix}intro-module/lambda_function/put_customer_journey.zip"}
+              },
+              "Environment": {
+                "Variables": {
+                    "API_ENDPOINT": {
+                        "Fn::Sub": "https://${GetCustomerJourneyAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/get-customer-journey"
+                    },
+                    "GET_CUSTOMER_JOURNEY_API_KEY": {
+                        "Ref": "GetCustomerJourneyAPIKey"
+                    },
+                    "DB_SECRET_ARN": {
+                        "Ref": "DatabaseSecretArn"
+                    }
+				}
+              },
+              "MemorySize": 512,
+              "Timeout": 300,
+              "VpcConfig": {
+                "SecurityGroupIds": [{"Ref": "Tlc302GetCustomerJourneyLambdaSecurityGroup"}],
+                "SubnetIds": [{"Ref": "PrivateSubnet1Id"}, {"Ref": "PrivateSubnet2Id"}]
+              },
+              "Layers": [{"Ref": "Psycopg2LayerArn"}]
+            }
+          },
+          "Tlc302PutCustomerJourneyLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+              "AssumeRolePolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {"Service": "lambda.amazonaws.com"},
+                    "Action": "sts:AssumeRole"
+                  }
+                ]
+              },
+              "ManagedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"],
+              "Policies": [
+                {
+                  "PolicyName": "Tlc302PutCustomerJourneyLambdaPolicy",
+                  "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "logs:CreateLogGroup",
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents"
+                            ],
+                            "Resource": "arn:aws:logs:*:*:*"
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "rds-data:ExecuteStatement",
+                                "rds-data:BatchExecuteStatement",
+                                "rds-data:BeginTransaction",
+                                "rds-data:CommitTransaction",
+                                "rds-data:RollbackTransaction"
+                            ],
+                            "Resource": {
+                                "Fn::Sub": "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DatabaseClusterArn}"
+                            }
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "secretsmanager:GetSecretValue",
+                                "secretsmanager:DescribeSecret"
+                            ],
+                            "Resource": {
+                                "Ref": "DatabaseSecretArn"
+                            }
+                        }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "Tlc302PutEventTypeLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "FunctionName": "PutEventTypeLambda",
+              "Runtime": "python3.11",
+              "Handler": "put_event_type.handler",
+              "Role": {"Fn::GetAtt": ["Tlc302PutEventTypeLambdaRole", "Arn"]},
+              "Code": {
+                "S3Bucket": {"Ref": "S3BucketName"},
+                "S3Key": {"Fn::Sub": "${S3BucketPrefix}intro-module/lambda_function/put_event_type.zip"}
+              },
+              "Environment": {
+                "Variables": {
+                    "API_ENDPOINT": {
+                        "Fn::Sub": "https://${GetCustomerJourneyAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/get-customer-journey"
+                    },
+                    "GET_CUSTOMER_JOURNEY_API_KEY": {
+                        "Ref": "GetCustomerJourneyAPIKey"
+                    },
+                    "DB_SECRET_ARN": {
+                        "Ref": "DatabaseSecretArn"
+                    }
+				}
+              },
+              "MemorySize": 512,
+              "Timeout": 300,
+              "VpcConfig": {
+                "SecurityGroupIds": [{"Ref": "Tlc302GetCustomerJourneyLambdaSecurityGroup"}],
+                "SubnetIds": [{"Ref": "PrivateSubnet1Id"}, {"Ref": "PrivateSubnet2Id"}]
+              },
+              "Layers": [{"Ref": "Psycopg2LayerArn"}]
+            }
+          },
+          "Tlc302PutEventTypeLambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+              "AssumeRolePolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {"Service": "lambda.amazonaws.com"},
+                    "Action": "sts:AssumeRole"
+                  }
+                ]
+              },
+              "ManagedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"],
+              "Policies": [
+                {
+                  "PolicyName": "Tlc302PutEventTypeLambdaPolicy",
+                  "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "logs:CreateLogGroup",
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents"
+                            ],
+                            "Resource": "arn:aws:logs:*:*:*"
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "rds-data:ExecuteStatement",
+                                "rds-data:BatchExecuteStatement",
+                                "rds-data:BeginTransaction",
+                                "rds-data:CommitTransaction",
+                                "rds-data:RollbackTransaction"
+                            ],
+                            "Resource": {
+                                "Fn::Sub": "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DatabaseClusterArn}"
+                            }
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "secretsmanager:GetSecretValue",
+                                "secretsmanager:DescribeSecret"
+                            ],
+                            "Resource": {
+                                "Ref": "DatabaseSecretArn"
+                            }
+                        }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "GetEventTypeLambdaPermission": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                "Fn::GetAtt": [
+						"Tlc302GetEventTypeLambda",
+						"Arn"
+					]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GetEventTypeAPIGateway}/*/*/get-event-type"
+                }
+            }
+        },
+        "PutCustomerJourneyLambdaPermission": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                "Fn::GetAtt": [
+						"Tlc302PutCustomerJourneyLambda",
+						"Arn"
+					]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PutCustomerJourneyAPIGateway}/*/*/put-customer-journey"
+                }
+            }
+        },
+        "PutEventTypeLambdaPermission": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                "Fn::GetAtt": [
+						"Tlc302PutEventTypeLambda",
+						"Arn"
+					]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PutEventTypeAPIGateway}/*/*/put-event-type"
+                }
+            }
+         },
+         "GetCustomerJourneyChatResponseLambdaPermission": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                "Fn::GetAtt": [
+						"Tlc302GetCustomerJourneyChatResponseLambda",
+						"Arn"
+					]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GetCustomerJourneyChatResponseAPIGateway}/*/*/get-customer-journey-chat-response"
+                }
+            }
+        },
+        "GetCustomerJourneyToBedrockLambdaPermission": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                "Fn::GetAtt": [
+						"Tlc302GetCustomerJourneyToBedrock",
+						"Arn"
+					]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "apigateway.amazonaws.com",
+                "SourceArn": {
+                "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GetCustomerJourneyBerockAPIGateway}/*/*/get-customer-journey-to-bedrock"
+                }
+            }
+        },      
+		"GetCustomerJourneyAPIKey": {
+			"Type": "AWS::ApiGateway::ApiKey",
+			"Properties": {
+				"Enabled": true,
+				"StageKeys": [
+					{
+						"RestApiId": {
+							"Ref": "GetCustomerJourneyAPIGateway"
+						},
+						"StageName": {
+							"Ref": "GetCustomerJourneyAPIGatewayStage"
+						}
+					}
+				]
+			}
+		},
+		"GetCustomerProfileAPIKey": {
+            "Type": "AWS::ApiGateway::ApiKey",
+            "Properties": {
+                "Enabled": true,
+                "StageKeys": [
+                    {
+                        "RestApiId": {
+                            "Ref": "GetCustomerProfileAPIGateway"
+                        },
+                        "StageName": {
+                            "Ref": "GetCustomerProfileAPIGatewayStage"
+                        }
+                    }
+                ]
+            }
+        },
+        "GetCustomerJourneyToBedrockAPIKey": {
+			"Type": "AWS::ApiGateway::ApiKey",
+			"Properties": {
+				"Enabled": true,
+				"StageKeys": [
+					{
+						"RestApiId": {
+							"Ref": "GetCustomerJourneyBerockAPIGateway"
+						},
+						"StageName": {
+							"Ref": "GetCustomerJourneyBerockAPIGatewayStage"
+						}
+					}
+				]
+			}
+		},
+        "GetCustomerJourneyChatResponseAPIKey": {
+			"Type": "AWS::ApiGateway::ApiKey",
+			"Properties": {
+				"Enabled": true,
+				"StageKeys": [
+					{
+						"RestApiId": {
+							"Ref": "GetCustomerJourneyChatResponseAPIGateway"
+						},
+						"StageName": {
+							"Ref": "GetCustomerJourneyChatResponseAPIGatewayStage"
+						}
+					}
+				]
+			}
+		}, 
+        "PutCustomerJourneyAPIKey": {
+			"Type": "AWS::ApiGateway::ApiKey",
+			"Properties": {
+				"Enabled": true,
+				"StageKeys": [
+					{
+						"RestApiId": {
+							"Ref": "PutCustomerJourneyAPIGateway"
+						},
+						"StageName": {
+							"Ref": "PutCustomerJourneyAPIGatewayStage"
+						}
+					}
+				]
+			}
+		},
+        "PutEventTypeAPIKey": {
+			"Type": "AWS::ApiGateway::ApiKey",
+			"Properties": {
+				"Enabled": true,
+				"StageKeys": [
+					{
+						"RestApiId": {
+							"Ref": "PutEventTypeAPIGateway"
+						},
+						"StageName": {
+							"Ref": "PutEventTypeAPIGatewayStage"
+						}
+					}
+				]
+			}
+		},
+        "GetEventTypeAPIKey": {
+            "Type": "AWS::ApiGateway::ApiKey",
+            "Properties": {
+                "Enabled": true,
+                "StageKeys": [
+                    {
+                        "RestApiId": {
+                            "Ref": "GetEventTypeAPIGateway"
+                        },
+                        "StageName": {
+                            "Ref": "GetEventTypeAPIGatewayStage"
+                        }
+                    }
+                ]
+            }
+        },
+		"GetCustomerJourneyUsagePlan": {
+			"Type": "AWS::ApiGateway::UsagePlan",
+			"DependsOn": "GetCustomerJourneyAPIGatewayStage",
+			"Properties": {
+				"ApiStages": [
+					{
+						"ApiId": {
+							"Ref": "GetCustomerJourneyAPIGateway"
+						},
+						"Stage": "Prod"
+					}
+				],
+				"Quota": {
+					"Limit": 1000,
+					"Period": "DAY"
+				},
+				"Throttle": {
+					"BurstLimit": 5,
+					"RateLimit": 10
+				}
+			}
+		},
+		"GetCustomerProfileUsagePlan": {
+            "Type": "AWS::ApiGateway::UsagePlan",
+            "DependsOn": "GetCustomerProfileAPIGatewayStage",
+            "Properties": {
+                "ApiStages": [
+                    {
+                        "ApiId": {
+                            "Ref": "GetCustomerProfileAPIGateway"
+                        },
+                        "Stage": "Prod"
+                    }
+                ],
+                "Quota": {
+                    "Limit": 1000,
+                    "Period": "DAY"
+                },
+                "Throttle": {
+                    "BurstLimit": 5,
+                    "RateLimit": 10
+                }
+            }
+        },
+		"GetCustomerJourneyToBedrockUsagePlan": {
+			"Type": "AWS::ApiGateway::UsagePlan",
+			"DependsOn": "GetCustomerJourneyBerockAPIGatewayStage",
+			"Properties": {
+				"ApiStages": [
+					{
+						"ApiId": {
+							"Ref": "GetCustomerJourneyBerockAPIGateway"
+						},
+						"Stage": "Prod"
+					}
+				],
+				"Quota": {
+					"Limit": 1000,
+					"Period": "DAY"
+				},
+				"Throttle": {
+					"BurstLimit": 5,
+					"RateLimit": 10
+				}
+			}
+		},
+		"GetCustomerJourneyChatResponseUsagePlan": {
+			"Type": "AWS::ApiGateway::UsagePlan",
+			"DependsOn": "GetCustomerJourneyChatResponseAPIGatewayStage",
+			"Properties": {
+				"ApiStages": [
+					{
+						"ApiId": {
+							"Ref": "GetCustomerJourneyChatResponseAPIGateway"
+						},
+						"Stage": "Prod"
+					}
+				],
+				"Quota": {
+					"Limit": 1000,
+					"Period": "DAY"
+				},
+				"Throttle": {
+					"BurstLimit": 5,
+					"RateLimit": 10
+				}
+			}
+		},
+        "PutCustomerJourneyUsagePlan": {
+            "Type": "AWS::ApiGateway::UsagePlan",
+            "DependsOn": "PutCustomerJourneyAPIGatewayStage",
+            "Properties": {
+                "ApiStages": [
+                    {
+                        "ApiId": {
+                            "Ref": "PutCustomerJourneyAPIGateway"
+                        },
+                        "Stage": "Prod"
+                    }
+                ],
+                "Quota": {
+                    "Limit": 1000,
+                    "Period": "DAY"
+                },
+                "Throttle": {
+                    "BurstLimit": 5,
+                    "RateLimit": 10
+                }
+            }
+        },
+        "PutEventTypeUsagePlan": {
+            "Type": "AWS::ApiGateway::UsagePlan",
+            "DependsOn": "PutEventTypeAPIGatewayStage",
+            "Properties": {
+                "ApiStages": [
+                    {
+                        "ApiId": {
+                            "Ref": "PutEventTypeAPIGateway"
+                        },
+                        "Stage": "Prod"
+                    }
+                ],
+                "Quota": {
+                    "Limit": 1000,
+                    "Period": "DAY"
+                },
+                "Throttle": {
+                    "BurstLimit": 5,
+                    "RateLimit": 10
+                }
+            }
+        },
+        "GetEventTypeUsagePlan": {
+            "Type": "AWS::ApiGateway::UsagePlan",
+            "DependsOn": "GetEventTypeAPIGatewayStage",
+            "Properties": {
+                "ApiStages": [
+                    {
+                        "ApiId": {
+                            "Ref": "GetEventTypeAPIGateway"
+                        },
+                        "Stage": "Prod"
+                    }
+                ],
+                "Quota": {
+                    "Limit": 1000,
+                    "Period": "DAY"
+                },
+                "Throttle": {
+                    "BurstLimit": 5,
+                    "RateLimit": 10
+                }
+            }
+        },
+		"GetCustomerJourneyUsagePlanKey": {
+			"Type": "AWS::ApiGateway::UsagePlanKey",
+			"DependsOn": [
+				"GetCustomerJourneyUsagePlan",
+				"GetCustomerJourneyChatResponseAPIGatewayStage"
+			],
+			"Properties": {
+				"KeyId": {
+					"Ref": "GetCustomerJourneyAPIKey"
+				},
+				"KeyType": "API_KEY",
+				"UsagePlanId": {
+					"Ref": "GetCustomerJourneyUsagePlan"
+				}
+			}
+		},
+		"GetCustomerProfileUsagePlanKey": {
+            "Type": "AWS::ApiGateway::UsagePlanKey",
+            "DependsOn": [
+                "GetCustomerProfileUsagePlan"
+            ],
+            "Properties": {
+                "KeyId": {
+                    "Ref": "GetCustomerProfileAPIKey"
+                },
+                "KeyType": "API_KEY",
+                "UsagePlanId": {
+                    "Ref": "GetCustomerProfileUsagePlan"
+                }
+            }
+        },
+		"GetCustomerJourneyToBedrockUsagePlanKey": {
+			"Type": "AWS::ApiGateway::UsagePlanKey",
+			"DependsOn": [
+				"GetCustomerJourneyToBedrockUsagePlan",
+				"GetCustomerJourneyBerockAPIGatewayStage"
+			],
+			"Properties": {
+				"KeyId": {
+					"Ref": "GetCustomerJourneyToBedrockAPIKey"
+				},
+				"KeyType": "API_KEY",
+				"UsagePlanId": {
+					"Ref": "GetCustomerJourneyToBedrockUsagePlan"
+				}
+			}
+		},
+		"GetCustomerJourneyChatResponseUsagePlanKey": {
+			"Type": "AWS::ApiGateway::UsagePlanKey",
+			"DependsOn": [
+				"GetCustomerJourneyChatResponseUsagePlan",
+				"GetCustomerJourneyChatResponseAPIGatewayStage"
+			],
+			"Properties": {
+				"KeyId": {
+					"Ref": "GetCustomerJourneyChatResponseAPIKey"
+				},
+				"KeyType": "API_KEY",
+				"UsagePlanId": {
+					"Ref": "GetCustomerJourneyChatResponseUsagePlan"
+				}
+			}
+		},
+        "PutCustomerJourneyUsagePlanKey": {
+            "Type": "AWS::ApiGateway::UsagePlanKey",
+            "DependsOn": [
+                "PutCustomerJourneyUsagePlan",
+                "PutCustomerJourneyAPIGatewayStage"
+            ],
+            "Properties": {
+                "KeyId": {
+                    "Ref": "PutCustomerJourneyAPIKey"
+                },
+                "KeyType": "API_KEY",
+                "UsagePlanId": {
+                    "Ref": "PutCustomerJourneyUsagePlan"
+                }
+            }
+        },
+        "PutEventTypeUsagePlanKey": {
+            "Type": "AWS::ApiGateway::UsagePlanKey",
+            "DependsOn": [
+                "PutEventTypeUsagePlan",
+                "PutEventTypeAPIGatewayStage"
+            ],
+            "Properties": {
+                "KeyId": {
+                    "Ref": "PutEventTypeAPIKey"
+                },
+                "KeyType": "API_KEY",
+                "UsagePlanId": {
+                    "Ref": "PutEventTypeUsagePlan"
+                }
+            }
+        },
+        "GetEventTypeUsagePlanKey": {
+            "Type": "AWS::ApiGateway::UsagePlanKey",
+            "DependsOn": [
+                "GetEventTypeUsagePlan",
+                "GetEventTypeAPIGatewayStage"
+            ],
+            "Properties": {
+                "KeyId": {
+                    "Ref": "GetEventTypeAPIKey"
+                },
+                "KeyType": "API_KEY",
+                "UsagePlanId": {
+                    "Ref": "GetEventTypeUsagePlan"
+                }
+            }
+        },
+		"APIKeySecret": {
+			"Type": "AWS::SecretsManager::Secret",
+			"Properties": {
+				"Name": "TLC302APIGatewayKey",
+				"Description": "API Key for TLC302 API Gateway",
+				"SecretString": {
+					"Fn::Sub": "{\"GetCustomerJourneyAPIKeyId\": \"${GetCustomerJourneyAPIKey}\", \"GetCustomerProfileAPIKeyId\": \"${GetCustomerProfileAPIKey}\", \"GetCustomerJourneyToBedrockAPIKeyId\": \"${GetCustomerJourneyToBedrockAPIKey}\", \"GetCustomerJourneyChatResponseAPIKeyId\": \"${GetCustomerJourneyChatResponseAPIKey}\", \"PutCustomerJourneyAPIKeyId\": \"${PutCustomerJourneyAPIKey}\", \"PutEventTypeAPIKeyId\": \"${PutEventTypeAPIKey}\", \"GetEventTypeAPIKeyId\": \"${GetEventTypeAPIKey}\"}"
+				}
+			}
+		},
+		"GetCustomerJourneyToBedrockResource": {
+			"Type": "AWS::ApiGateway::Resource",
+			"Properties": {
+				"ParentId": {
+					"Fn::GetAtt": [
+						"GetCustomerJourneyBerockAPIGateway",
+						"RootResourceId"
+					]
+				},
+				"PathPart": "get-customer-journey-to-bedrock",
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyBerockAPIGateway"
+				}
+			}
+		},
+		"GetCustomerJourneyToBedrockMethod": {
+			"Type": "AWS::ApiGateway::Method",
+			"DependsOn": [
+				"GetCustomerJourneyToBedrockResource",
+				"GetCustomerJourneyBerockAPIGateway"
+			],
+			"Properties": {
+				"ApiKeyRequired": true,
+				"AuthorizationType": "NONE",
+				"HttpMethod": "GET",
+				"Integration": {
+					"IntegrationHttpMethod": "POST",
+					"Type": "AWS_PROXY",
+					"Uri": {
+						"Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Tlc302GetCustomerJourneyToBedrock.Arn}/invocations"
+					}
+				},
+				"ResourceId": {
+					"Ref": "GetCustomerJourneyToBedrockResource"
+				},
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyBerockAPIGateway"
+				}
+			}
+		},
+		"GetCustomerJourneyToBedrockOptionsMethod": {
+			"Type": "AWS::ApiGateway::Method",
+			"Properties": {
+			"ApiKeyRequired": false,
+			"AuthorizationType": "NONE",
+			"HttpMethod": "OPTIONS",
+			"Integration": {
+				"IntegrationResponses": [
+				{
+					"ResponseParameters": {
+					"method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'",
+					"method.response.header.Access-Control-Allow-Origin": "'*'",
+					"method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+					"method.response.header.Access-Control-Allow-Credentials": "'true'"
+					},
+					"StatusCode": "204"
+				}
+				],
+				"RequestTemplates": {
+				"application/json": "{ statusCode: 200 }"
+				},
+				"Type": "MOCK"
+			},
+			"MethodResponses": [
+				{
+				"ResponseParameters": {
+					"method.response.header.Access-Control-Allow-Headers": true,
+					"method.response.header.Access-Control-Allow-Origin": true,
+					"method.response.header.Access-Control-Allow-Methods": true,
+					"method.response.header.Access-Control-Allow-Credentials": true
+				},
+				"StatusCode": "204"
+				}
+			],
+			"ResourceId": {
+				"Ref": "GetCustomerJourneyToBedrockResource"
+			},
+			"RestApiId": {
+				"Ref": "GetCustomerJourneyBerockAPIGateway"
+			}
+			}
+		},
+		"GetCustomerJourneyChatResponseResource": {
+			"Type": "AWS::ApiGateway::Resource",
+			"Properties": {
+				"ParentId": {
+					"Fn::GetAtt": [
+						"GetCustomerJourneyChatResponseAPIGateway",
+						"RootResourceId"
+					]
+				},
+				"PathPart": "get-customer-journey-chat-response",
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyChatResponseAPIGateway"
+				}
+			}
+		},
+		"GetCustomerJourneyChatResponseMethod": {
+			"Type": "AWS::ApiGateway::Method",
+			"DependsOn": [
+				"GetCustomerJourneyChatResponseResource",
+				"GetCustomerJourneyChatResponseAPIGateway"
+			],
+			"Properties": {
+				"ApiKeyRequired": true,
+				"AuthorizationType": "NONE",
+				"HttpMethod": "POST",
+				"Integration": {
+					"IntegrationHttpMethod": "POST",
+					"Type": "AWS_PROXY",
+					"Uri": {
+						"Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Tlc302GetCustomerJourneyChatResponseLambda.Arn}/invocations"
+					}
+				},
+				"ResourceId": {
+					"Ref": "GetCustomerJourneyChatResponseResource"
+				},
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyChatResponseAPIGateway"
+				}
+			}
+		},
+		"GetCustomerJourneyChatResponseOptionsMethod": {
+			"Type": "AWS::ApiGateway::Method",
+			"Properties": {
+			"ApiKeyRequired": false,
+			"AuthorizationType": "NONE",
+			"HttpMethod": "OPTIONS",
+			"Integration": {
+				"IntegrationResponses": [
+				{
+					"ResponseParameters": {
+					"method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'",
+					"method.response.header.Access-Control-Allow-Origin": "'*'",
+					"method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+					"method.response.header.Access-Control-Allow-Credentials": "'true'"
+					},
+					"StatusCode": "204"
+				}
+				],
+				"RequestTemplates": {
+				"application/json": "{ statusCode: 200 }"
+				},
+				"Type": "MOCK"
+			},
+			"MethodResponses": [
+				{
+				"ResponseParameters": {
+					"method.response.header.Access-Control-Allow-Headers": true,
+					"method.response.header.Access-Control-Allow-Origin": true,
+					"method.response.header.Access-Control-Allow-Methods": true,
+					"method.response.header.Access-Control-Allow-Credentials": true
+				},
+				"StatusCode": "204"
+				}
+			],
+			"ResourceId": {
+				"Ref": "GetCustomerJourneyChatResponseResource"
+			},
+			"RestApiId": {
+				"Ref": "GetCustomerJourneyChatResponseAPIGateway"
+			}
+			}
+		},
+        "GetEventTypeResource": {
+        "Type": "AWS::ApiGateway::Resource",
+        "Properties": {
+            "ParentId": {
+            "Fn::GetAtt": [
+                "GetEventTypeAPIGateway",
+                "RootResourceId"
+            ]
+            },
+            "PathPart": "get-event-type",
+            "RestApiId": {
+            "Ref": "GetEventTypeAPIGateway"
+            }
+        }
+        },
+        "GetEventTypeMethod": {
+        "Type": "AWS::ApiGateway::Method",
+        "DependsOn": ["GetEventTypeResource", "GetEventTypeAPIGateway"],
+        "Properties": {
+            "ApiKeyRequired": true,
+            "AuthorizationType": "NONE",
+            "HttpMethod": "GET",
+            "Integration": {
+            "IntegrationHttpMethod": "POST",
+            "Type": "AWS_PROXY",
+            "Uri": {
+                "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Tlc302GetEventTypeLambda.Arn}/invocations"
+            }
+            },
+            "ResourceId": {
+            "Ref": "GetEventTypeResource"
+            },
+            "RestApiId": {
+            "Ref": "GetEventTypeAPIGateway"
+            }
+        }
+        },
+        "PutCustomerJourneyResource": {
+        "Type": "AWS::ApiGateway::Resource",
+        "Properties": {
+            "ParentId": {
+            "Fn::GetAtt": [
+                "PutCustomerJourneyAPIGateway",
+                "RootResourceId"
+            ]
+            },
+            "PathPart": "put-customer-journey",
+            "RestApiId": {
+            "Ref": "PutCustomerJourneyAPIGateway"
+            }
+        }
+        },
+        "PutCustomerJourneyMethod": {
+        "Type": "AWS::ApiGateway::Method",
+        "DependsOn": ["PutCustomerJourneyResource", "PutCustomerJourneyAPIGateway"],
+        "Properties": {
+            "ApiKeyRequired": true,
+            "AuthorizationType": "NONE",
+            "HttpMethod": "POST",
+            "Integration": {
+            "IntegrationHttpMethod": "POST",
+            "Type": "AWS_PROXY",
+            "Uri": {
+                "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Tlc302PutCustomerJourneyLambda.Arn}/invocations"
+            }
+            },
+            "ResourceId": {
+            "Ref": "PutCustomerJourneyResource"
+            },
+            "RestApiId": {
+            "Ref": "PutCustomerJourneyAPIGateway"
+            }
+        }
+        },
+        "PutEventTypeResource": {
+        "Type": "AWS::ApiGateway::Resource",
+        "Properties": {
+            "ParentId": {
+            "Fn::GetAtt": [
+                "PutEventTypeAPIGateway",
+                "RootResourceId"
+            ]
+            },
+            "PathPart": "put-event-type",
+            "RestApiId": {
+            "Ref": "PutEventTypeAPIGateway"
+            }
+        }
+        },
+        "PutEventTypeMethod": {
+        "Type": "AWS::ApiGateway::Method",
+        "DependsOn": ["PutEventTypeResource", "PutEventTypeAPIGateway"],
+        "Properties": {
+            "ApiKeyRequired": true,
+            "AuthorizationType": "NONE",
+            "HttpMethod": "POST",
+            "Integration": {
+            "IntegrationHttpMethod": "POST",
+            "Type": "AWS_PROXY",
+            "Uri": {
+                "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Tlc302PutEventTypeLambda.Arn}/invocations"
+            }
+            },
+            "ResourceId": {
+            "Ref": "PutEventTypeResource"
+            },
+            "RestApiId": {
+            "Ref": "PutEventTypeAPIGateway"
+            }
+        }
+        },
+		"GetCustomerJourneyAPIGatewayDeployment": {
+			"Type": "AWS::ApiGateway::Deployment",
+			"DependsOn": [
+				"GetCustomerJourneyMethod",
+				"GetCustomerJourneyOptionsMethod"
+			],
+			"Properties": {
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyAPIGateway"
+				},
+				"Description": {
+					"Fn::Sub": "Deployment for all API methods - ${AWS::StackName}-${AWS::Region}-${AWS::AccountId}"
+				}
+			}
+		},
+		"GetCustomerProfileAPIGatewayDeployment": {
+            "Type": "AWS::ApiGateway::Deployment",
+            "DependsOn": [
+                "GetCustomerProfileMethod"
+            ],
+            "Properties": {
+                "RestApiId": {
+                    "Ref": "GetCustomerProfileAPIGateway"
+                },
+                "Description": {
+                    "Fn::Sub": "Deployment for all API methods - ${AWS::StackName}-${AWS::Region}-${AWS::AccountId}"
+                }
+            }
+		},
+		"GetCustomerJourneyBerockAPIGatewayDeployment": {
+			"Type": "AWS::ApiGateway::Deployment",
+			"DependsOn": [
+				"GetCustomerJourneyToBedrockMethod",
+				"GetCustomerJourneyToBedrockOptionsMethod"
+			],
+			"Properties": {
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyBerockAPIGateway"
+				},
+				"Description": {
+					"Fn::Sub": "Deployment for all API methods - ${AWS::StackName}-${AWS::Region}-${AWS::AccountId}"
+				}
+			}
+		},
+		"GetCustomerJourneyChatResponseAPIGatewayDeployment": {
+			"Type": "AWS::ApiGateway::Deployment",
+			"DependsOn": [
+				"GetCustomerJourneyChatResponseMethod",
+				"GetCustomerJourneyChatResponseOptionsMethod"
+			],
+			"Properties": {
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyChatResponseAPIGateway"
+				},
+				"Description": {
+					"Fn::Sub": "Deployment for all API methods - ${AWS::StackName}-${AWS::Region}-${AWS::AccountId}"
+				}
+			}
+		},
+        "GetEventTypeAPIGatewayDeployment": {
+            "Type": "AWS::ApiGateway::Deployment",
+            "DependsOn": [
+                "GetEventTypeMethod"
+            ],
+            "Properties": {
+                "RestApiId": {
+                "Ref": "GetEventTypeAPIGateway"
+                },
+                "Description": {
+                "Fn::Sub": "Deployment for all API methods - ${AWS::StackName}-${AWS::Region}-${AWS::AccountId}"
+                }
+            }
+        },
+        "PutCustomerJourneyAPIGatewayDeployment": {
+            "Type": "AWS::ApiGateway::Deployment",
+            "DependsOn": [
+                "PutCustomerJourneyMethod"
+            ],
+            "Properties": {
+                "RestApiId": {
+                "Ref": "PutCustomerJourneyAPIGateway"
+                },
+                "Description": {
+                "Fn::Sub": "Deployment for all API methods - ${AWS::StackName}-${AWS::Region}-${AWS::AccountId}"
+                }
+            }
+        },
+        "PutEventTypeAPIGatewayDeployment": {
+            "Type": "AWS::ApiGateway::Deployment",
+            "DependsOn": [
+                "PutEventTypeMethod"
+            ],
+            "Properties": {
+                "RestApiId": {
+                "Ref": "PutEventTypeAPIGateway"
+                },
+                "Description": {
+                "Fn::Sub": "Deployment for all API methods - ${AWS::StackName}-${AWS::Region}-${AWS::AccountId}"
+                }
+            }
+        },
+		"GetCustomerJourneyAPIGatewayStage": {
+			"Type": "AWS::ApiGateway::Stage",
+			"DependsOn": "GetCustomerJourneyAPIGatewayDeployment",
+			"Properties": {
+				"DeploymentId": {
+					"Ref": "GetCustomerJourneyAPIGatewayDeployment"
+				},
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyAPIGateway"
+				},
+				"StageName": "Prod"
+			}
+		},
+		"GetCustomerProfileAPIGatewayStage": {
+			"Type": "AWS::ApiGateway::Stage",
+			"DependsOn": "GetCustomerProfileAPIGatewayDeployment",
+			"Properties": {
+				"DeploymentId": {
+					"Ref": "GetCustomerProfileAPIGatewayDeployment"
+				},
+				"RestApiId": {
+					"Ref": "GetCustomerProfileAPIGateway"
+				},
+				"StageName": "Prod"
+			}
+		},
+		"GetCustomerJourneyChatResponseAPIGatewayStage": {
+			"Type": "AWS::ApiGateway::Stage",
+			"DependsOn": "GetCustomerJourneyChatResponseAPIGatewayDeployment",
+			"Properties": {
+				"DeploymentId": {
+					"Ref": "GetCustomerJourneyChatResponseAPIGatewayDeployment"
+				},
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyChatResponseAPIGateway"
+				},
+				"StageName": "Prod"
+			}
+		},
+		"GetCustomerJourneyBerockAPIGatewayStage": {
+			"Type": "AWS::ApiGateway::Stage",
+			"DependsOn": "GetCustomerJourneyBerockAPIGatewayDeployment",
+			"Properties": {
+				"DeploymentId": {
+					"Ref": "GetCustomerJourneyBerockAPIGatewayDeployment"
+				},
+				"RestApiId": {
+					"Ref": "GetCustomerJourneyBerockAPIGateway"
+				},
+				"StageName": "Prod"
+			}
+		},
+        "GetEventTypeAPIGatewayStage": {
+            "Type": "AWS::ApiGateway::Stage",
+            "DependsOn": "GetEventTypeAPIGatewayDeployment",
+            "Properties": {
+            "DeploymentId": {
+                "Ref": "GetEventTypeAPIGatewayDeployment"
+            },
+            "RestApiId": {
+                "Ref": "GetEventTypeAPIGateway"
+            },
+            "StageName": "Prod"
+            }
+        },
+        "PutEventTypeAPIGatewayStage": {
+            "Type": "AWS::ApiGateway::Stage",
+            "DependsOn": "PutEventTypeAPIGatewayDeployment",
+            "Properties": {
+            "DeploymentId": {
+                "Ref": "PutEventTypeAPIGatewayDeployment"
+            },
+            "RestApiId": {
+                "Ref": "PutEventTypeAPIGateway"
+            },
+            "StageName": "Prod"
+            }
+        },
+        "PutCustomerJourneyAPIGatewayStage": {
+            "Type": "AWS::ApiGateway::Stage",
+            "DependsOn": "PutCustomerJourneyAPIGatewayDeployment",
+            "Properties": {
+            "DeploymentId": {
+                "Ref": "PutCustomerJourneyAPIGatewayDeployment"
+            },
+            "RestApiId": {
+                "Ref": "PutCustomerJourneyAPIGateway"
+            },
+            "StageName": "Prod"
+            }
+        },
+		"DataloaderStateMachine": {
+			"Type": "AWS::StepFunctions::StateMachine",
+			"DependsOn": [
+			  "Tlc302DataLoaderLambda", 
+			  "Tlc302DbTriggerLambda"
+			],
+			"Properties": {
+			  "StateMachineName": "DataloaderStateMachine",
+			  "DefinitionString": {
+				"Fn::Sub": [
+				  "{\"Comment\":\"Step Function for data loading\",\"StartAt\":\"WaitForDatabase\",\"States\":{\"WaitForDatabase\":{\"Type\":\"Wait\",\"Seconds\":60,\"Next\":\"DataloaderTask\"},\"DataloaderTask\":{\"Type\":\"Task\",\"Resource\":\"${DataLoaderLambdaArn}\",\"Next\":\"DbTriggerTask\"},\"DbTriggerTask\":{\"Type\":\"Task\",\"Resource\":\"${DbTriggerLambdaArn}\",\"End\":true}}}",
+				  {
+					"DataLoaderLambdaArn": {"Fn::GetAtt": ["Tlc302DataLoaderLambda", "Arn"]},
+					"DbTriggerLambdaArn": {"Fn::GetAtt": ["Tlc302DbTriggerLambda", "Arn"]}
+				  }
+				]
+			  },
+			  "RoleArn": {
+				"Fn::GetAtt": [
+				  "StepFunctionExecutionRole",
+				  "Arn"
+				]
+			  }
+			}
+		  },
+		  "StepFunctionExecutionRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+			  "AssumeRolePolicyDocument": {
+				"Version": "2012-10-17",
+				"Statement": [
+				  {
+					"Effect": "Allow",
+					"Principal": {
+					  "Service": "states.amazonaws.com"
+					},
+					"Action": "sts:AssumeRole"
+				  }
+				]
+			  },
+			  "Policies": [
+				{
+				  "PolicyName": "StepFunctionBasicExecution",
+				  "PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+					  {
+						"Effect": "Allow",
+						"Action": [
+						  "lambda:InvokeFunction",
+						  "logs:CreateLogGroup",
+						  "logs:CreateLogStream",
+						  "logs:PutLogEvents",
+						  "logs:CreateLogDelivery",
+						  "logs:GetLogDelivery",
+						  "logs:UpdateLogDelivery",
+						  "logs:DeleteLogDelivery",
+						  "logs:ListLogDeliveries",
+						  "logs:PutResourcePolicy",
+						  "logs:DescribeResourcePolicies",
+						  "logs:DescribeLogGroups"
+						],
+						"Resource": "*"
+					  }
+					]
+				  }
+				}
+			  ]
+			}
+		  },
+		  "EventBridgeRule": {
+			  "Type": "AWS::Events::Rule",
+			  "DependsOn": "DataloaderStateMachine",
+			  "Properties": {
+				"Description": "EventBridge rule for CloudFormation stack status",
+				"EventPattern": {
+				  "detail": {
+					  "status-details":{
+						  "status": ["CREATE_COMPLETE"]
+					  }
+				  },
+				  "detail-type": ["CloudFormation Stack Status Change"],
+				  "source": ["aws.cloudformation"]
+				},
+				"State": "ENABLED",
+				"Targets": [
+				  {
+					"Arn": {"Fn::GetAtt": ["DataloaderStateMachine", "Arn"]},
+					"Id": "TriggerStepFunctionOnCloudFormationStatusChange",
+					"RoleArn": {"Fn::GetAtt": ["EventBridgeRole", "Arn"]}
+				  },
+				  {
+					"Arn": { "Fn::GetAtt": ["EventBridgeLogGroup", "Arn"] },
+					"Id": "EventBridgeLogTarget"
+				  }
+				]
+			  }
+			},
+  
+		  "EventBridgeRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+				  "Version": "2012-10-17",
+				  "Statement": [
+					{
+					  "Effect": "Allow",
+					  "Principal": {
+						"Service": ["events.amazonaws.com"]
+					  },
+					  "Action": ["sts:AssumeRole"]
+					}
+				  ]
+				},
+				"Policies": [
+				  {
+					"PolicyName": "EventBridgeStepFunctionPolicy",
+					"PolicyDocument": {
+					  "Version": "2012-10-17",
+					  "Statement": [
+						{
+						  "Effect": "Allow",
+						  "Action": [
+							"states:StartExecution"
+						  ],
+						  "Resource": {"Fn::GetAtt": ["DataloaderStateMachine", "Arn"]}
+						},
+						{
+						  "Effect": "Allow",
+						  "Action": [
+							"logs:CreateLogStream",
+							"logs:PutLogEvents"
+						  ],
+						  "Resource": { "Fn::GetAtt": ["EventBridgeLogGroup", "Arn"] }
+						}
+					  ]
+					}
+				  }
+				]
+			}
+		  },
+		  "EventBridgeLogGroup": {
+			"Type": "AWS::Logs::LogGroup",
+			"Properties": {
+				"LogGroupName": "/aws/events/CloudFormationStatusChangeRule",
+				"RetentionInDays": 14
+			}
+		}
+	},
+	"Outputs": {
+		"DatabaseSecretArn": {
+			"Description": "ARN of the database secret",
+			"Value": {
+				"Ref": "DatabaseSecretArn"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-DatabaseSecretArn"
+				}
+			}
+		},
+		"GetCustomerJourneyAPIUrl": {
+			"Description": "Get Customer Journey API Endpoint URL",
+			"Value": {
+				"Fn::Sub": "https://${GetCustomerJourneyAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/get-customer-journey"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyAPIUrl"
+				}
+			}
+		},
+		"GetCustomerProfileAPIUrl": {
+            "Description": "Get Customer Journey API Endpoint URL",
+            "Value": {
+                "Fn::Sub": "https://${GetCustomerProfileAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/get-customer-profile"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-GetCustomerProfileAPIUrl"
+                }
+            }
+        },
+		"GetCustomerJourneyToBedrockAPIUrl": {
+			"Description": "Get Customer Journey To Bedrock API Endpoint URL",
+			"Value": {
+				"Fn::Sub": "https://${GetCustomerJourneyBerockAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/get-customer-journey-to-bedrock"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyToBedrockAPIUrl"
+				}
+			}
+		},
+		"GetCustomerJourneyChatResponseAPIUrl": {
+			"Description": "Get Customer Journey Chat Response API Endpoint URL",
+			"Value": {
+				"Fn::Sub": "https://${GetCustomerJourneyChatResponseAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/get-customer-journey-chat-response"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyChatResponseAPIUrl"
+				}
+			}
+		},
+        "GetEventTypeAPIUrl": {
+            "Description": "Get Event Type API Endpoint URL",
+            "Value": {
+                "Fn::Sub": "https://${GetEventTypeAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/get-event-type"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-GetEventTypeAPIUrl"
+                }
+            }
+        },
+        "PutEventTypeAPIUrl": {
+            "Description": "Put Event Type API Endpoint URL",
+            "Value": {
+                "Fn::Sub": "https://${PutEventTypeAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/put-event-type"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-PutEventTypeAPIUrl"
+                }
+            }
+        },
+        "PutCustomerJourneyAPIUrl": {
+            "Description": "Put Customer Journey API Endpoint URL",
+            "Value": {
+                "Fn::Sub": "https://${PutCustomerJourneyAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/put-customer-journey"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-PutCustomerJourneyAPIUrl"
+                }
+            }
+        },
+		"GetCustomerJourneyAPIKey": {
+			"Description": "API Key for GetCustomerJourney API Gateway",
+			"Value": {
+				"Ref": "GetCustomerJourneyAPIKey"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyAPIKey"
+				}
+			}
+		},
+        "GetCustomerJourneyToBedrockAPIKey": {
+			"Description": "API Key for GetCustomerJourneyToBedrock API Gateway",
+			"Value": {
+				"Ref": "GetCustomerJourneyToBedrockAPIKey"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyToBedrockAPIKey"
+				}
+			}
+		},
+        "GetCustomerJourneyChatResponseAPIKey": {
+			"Description": "API Key for GetCustomerJourneyChatResponse API Gateway",
+			"Value": {
+				"Ref": "GetCustomerJourneyChatResponseAPIKey"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyChatResponseAPIKey"
+				}
+			}
+		},
+        "GetEventTypeAPIKey": {
+            "Description": "API Key for GetEventType API Gateway",
+            "Value": {
+                "Ref": "GetEventTypeAPIKey"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-GetEventTypeAPIKey"
+                }
+            }
+        },
+        "PutEventTypeAPIKey": {
+            "Description": "API Key for PutEventType API Gateway",
+            "Value": {
+                "Ref": "PutEventTypeAPIKey"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-PutEventTypeAPIKey"
+                }
+            }
+        },  
+        "PutCustomerJourneyAPIKey": {
+            "Description": "API Key for PutCustomerJourney API Gateway",
+            "Value": {
+                "Ref": "PutCustomerJourneyAPIKey"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-PutCustomerJourneyAPIKey"
+                }
+            }
+        },
+		"GetCustomerProfileAPIKey": {
+            "Description": "API Key for GetCustomerProfile API Gateway",
+            "Value": {
+                "Ref": "GetCustomerProfileAPIKey"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-GetCustomerProfileAPIKey"
+                }
+            }
+        },
+		"DataLoaderLambdaArn": {
+			"Description": "ARN of the DataLoader Lambda function",
+			"Value": {"Fn::GetAtt": ["Tlc302DataLoaderLambda", "Arn"]},
+			"Export": {"Name": {"Fn::Sub": "${AWS::StackName}-DataLoaderLambdaArn"}}
+		},
+		"DbTriggerLambdaArn": {
+			"Description": "ARN of the db trigger creation Lambda function",
+			"Value": {"Fn::GetAtt": ["Tlc302DbTriggerLambda", "Arn"]},
+			"Export": {"Name": {"Fn::Sub": "${AWS::StackName}-DbTriggerLambdaArn"}}
+		}		
+	}
+}

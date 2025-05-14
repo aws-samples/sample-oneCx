@@ -1,0 +1,116 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Root stack for the onecx support application",
+  "Parameters": {
+    "S3BucketName": {
+      "Type": "String",
+      "Description": "Name of the S3 bucket containing the nested templates"
+    }, 
+    "S3BucketPrefix": {
+      "Type": "String",
+      "Description": "Name of the S3 bucket Prefix containing the nested templates"
+    }
+  },
+  "Resources": {
+    "NetworkStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Sub": "https://${S3BucketName}.s3.amazonaws.com/${S3BucketPrefix}network.json"
+        },
+        "Parameters": {
+          "EnvironmentName": "ccj"
+        }
+      }
+    },
+    "KBFilesCopyStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Sub": "https://${S3BucketName}.s3.amazonaws.com/${S3BucketPrefix}kbfilescopy.yaml"
+        },
+        "Parameters": {
+          "S3BucketName": { "Ref": "S3BucketName"},
+          "S3BucketPrefix": { "Ref": "S3BucketPrefix"}
+        }
+      }
+  }, 
+    "IAMStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Sub": "https://${S3BucketName}.s3.amazonaws.com/${S3BucketPrefix}iam.json"
+        },
+        "Parameters": {
+          "EnvironmentName": "ccj"
+        }
+      }
+    },
+    "RDSStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "DependsOn": ["NetworkStack"],
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Sub": "https://${S3BucketName}.s3.amazonaws.com/${S3BucketPrefix}rds.json"
+        },
+        "Parameters": {
+          "EnvironmentName": "ccj",
+          "VpcId": {"Fn::GetAtt": ["NetworkStack", "Outputs.VpcId"]},
+          "PrivateSubnet1": {"Fn::GetAtt": ["NetworkStack", "Outputs.PrivateSubnet1"]},
+          "PrivateSubnet2": {"Fn::GetAtt": ["NetworkStack", "Outputs.PrivateSubnet2"]}
+        }
+      }
+    },
+    "DynamoDBStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Sub": "https://${S3BucketName}.s3.amazonaws.com/${S3BucketPrefix}dynamodb.json"
+        },
+        "Parameters": {
+          "EnvironmentName": "ccj"
+        }
+      }
+    },
+    "LambdaStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "DependsOn": ["NetworkStack", "IAMStack", "RDSStack"],
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Sub": "https://${S3BucketName}.s3.amazonaws.com/${S3BucketPrefix}lambda.json"
+        },
+        "Parameters": {
+          "EnvironmentName": "ccj",
+          "NetworkStackName": {"Fn::GetAtt": ["NetworkStack", "Outputs.StackName"]},
+          "IAMStackName": {"Fn::GetAtt": ["IAMStack", "Outputs.StackName"]},
+          "BillshockDBInstanceId": {"Fn::GetAtt": ["RDSStack", "Outputs.BillshockDBInstanceId"]},
+          "TechsupportDBInstanceId": {"Fn::GetAtt": ["RDSStack", "Outputs.TechsupportDBInstanceId"]},
+          "S3BucketName": { "Ref": "S3BucketName"},
+          "S3BucketPrefix": { "Ref": "S3BucketPrefix"}
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "NetworkStackName": {
+      "Description": "Name of the Network Stack",
+      "Value": {"Fn::GetAtt": ["NetworkStack", "Outputs.StackName"]}
+    },
+    "IAMStackName": {
+      "Description": "Name of the IAM Stack",
+      "Value": {"Fn::GetAtt": ["IAMStack", "Outputs.StackName"]}
+    },
+    "RDSStackName": {
+      "Description": "Name of the RDS Stack",
+      "Value": {"Fn::GetAtt": ["RDSStack", "Outputs.StackName"]}
+    },
+    "DynamoDBStackName": {
+      "Description": "Name of the DynamoDB Stack",
+      "Value": {"Fn::GetAtt": ["DynamoDBStack", "Outputs.StackName"]}
+    },
+    "LambdaStackName": {
+      "Description": "Name of the Lambda Stack",
+      "Value": {"Fn::GetAtt": ["LambdaStack", "Outputs.StackName"]}
+    }
+  }
+}

@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Template to create S3 buckets and copy specific files from a source bucket'
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: Name of the source S3 bucket
+
+  S3BucketPrefix:
+    Type: String
+    Description: Prefix for source objects in S3
+
+Resources:
+  # S3 Buckets
+  TechSupportBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - 'techsupport'
+          - !Ref AWS::AccountId
+          - !Ref AWS::Region
+          - !Select [7, !Split ['-', !Ref AWS::StackId]]
+
+  ModemtsBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - 'modemts'
+          - !Ref AWS::AccountId
+          - !Ref AWS::Region
+          - !Select [7, !Split ['-', !Ref AWS::StackId]]
+
+  DisableRoamingBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - 'disableroaming'
+          - !Ref AWS::AccountId
+          - !Ref AWS::Region
+          - !Select [7, !Split ['-', !Ref AWS::StackId]]
+
+  DataPlansBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - 'dataplans'
+          - !Ref AWS::AccountId
+          - !Ref AWS::Region
+          - !Select [7, !Split ['-', !Ref AWS::StackId]]
+
+  # IAM Role for Lambda
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-s3-access-policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                  - 's3:ListBucket'
+                Resource: 
+                  - !Sub 'arn:aws:s3:::${S3BucketName}'
+                  - !Sub 'arn:aws:s3:::${S3BucketName}/*'
+                  - !Sub 'arn:aws:s3:::${TechSupportBucket}'
+                  - !Sub 'arn:aws:s3:::${TechSupportBucket}/*'
+                  - !Sub 'arn:aws:s3:::${ModemtsBucket}'
+                  - !Sub 'arn:aws:s3:::${ModemtsBucket}/*'
+                  - !Sub 'arn:aws:s3:::${DisableRoamingBucket}'
+                  - !Sub 'arn:aws:s3:::${DisableRoamingBucket}/*'
+                  - !Sub 'arn:aws:s3:::${DataPlansBucket}'
+                  - !Sub 'arn:aws:s3:::${DataPlansBucket}/*'
+
+  # Lambda function to copy files
+  CopyFileFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-copy-file-function'
+      Handler: 'index.lambda_handler'
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: 'python3.12'
+      Timeout: 300
+      Code:
+        ZipFile: !Sub |
+          import boto3
+          import cfnresponse
+
+          def lambda_handler(event, context):
+              s3 = boto3.client('s3')
+              
+              source_bucket = '${S3BucketName}'
+              source_prefix = '${S3BucketPrefix}'
+              
+              files_to_copy = {
+                  '${TechSupportBucket}': [
+                      'HowtoPayYourBroadbandBillUsingAcmePaymentWindowsmachine.pdf',
+                      'HowtoPayYourBroadbandBillUsingAcmePaymentMacOS.pdf',
+                      'HowtoPayYourBroadbandBillUsingAcmePaymentiOSMobileApp.pdf',
+                      'HowtoPayYourBroadbandBillUsingAcmePaymentAndriodMobileApp.pdf',
+                      'TypeofPaymentDevices.pdf'
+                  ],
+                  '${ModemtsBucket}': [
+                      'ModemTroubleshootingGuide.pdf'
+                  ],
+                  '${DisableRoamingBucket}': [
+                      'DisablingDataRoamingoniPhone.pdf'
+                  ],
+                  '${DataPlansBucket}': [
+                      'DataRoamingPlans.pdf'
+                  ]
+              }
+              
+              try:
+                  for dest_bucket, file_list in files_to_copy.items():
+                      for file_name in file_list:
+                          source_key = f"{source_prefix}{file_name}"
+                          s3.copy_object(
+                              CopySource={'Bucket': source_bucket, 'Key': source_key},
+                              Bucket=dest_bucket,
+                              Key=file_name
+                          )
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {"message": "Files copied successfully"})
+              except Exception as e:
+                  print(str(e))
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {"message": "File copy failed"})
+
+  # Custom resource to trigger Lambda function
+  TriggerLambdaFunction:
+    Type: 'Custom::TriggerLambda'
+    Properties:
+      ServiceToken: !GetAtt CopyFileFunction.Arn
+    DependsOn:
+      - TechSupportBucket
+      - ModemtsBucket
+      - DisableRoamingBucket
+      - DataPlansBucket
+
+Outputs:
+  TechSupportBucketName:
+    Description: "Name of the TechSupport bucket"
+    Value: !Ref TechSupportBucket
+
+  ModemtsBucketName:
+    Description: "Name of the Modemts bucket"
+    Value: !Ref ModemtsBucket
+
+  DisableRoamingBucketName:
+    Description: "Name of the DisableRoaming bucket"
+    Value: !Ref DisableRoamingBucket
+
+  DataPlansBucketName:
+    Description: "Name of the DataPlans bucket"
+    Value: !Ref DataPlansBucket

@@ -1,0 +1,847 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Lambda functions for Billshock and Tech Support operations and RDS availability check ",
+  "Parameters": {
+    "S3BucketName": {
+      "Type": "String",
+      "Description": "Name of the S3 bucket containing the nested templates"
+    }, 
+    "S3BucketPrefix": {
+      "Type": "String",
+      "Description": "Name of the S3 bucket Prefix containing the nested templates"
+    },
+    "EnvironmentName": {
+      "Type": "String",
+      "Default": "ccj"
+    },
+    "NetworkStackName": {
+      "Type": "String",
+      "Description": "Name of the network stack"
+    },
+    "IAMStackName": {
+      "Type": "String",
+      "Description": "Name of the IAM stack"
+    },
+    "CreateLambdas": {
+      "Type": "String",
+      "Default": "true",
+      "AllowedValues": ["true", "false"],
+      "Description": "Set to false to skip Lambda function creation"
+    },
+    "BillshockDBInstanceId": {
+      "Type": "String",
+      "Description": "Identifier of the billshock instance"
+    },
+    "TechsupportDBInstanceId": {
+      "Type": "String",
+      "Description": "Identifier of the techsupport instance"
+    }
+  },
+  "Conditions": {
+    "ShouldCreateLambdas": {"Fn::Equals": [{"Ref": "CreateLambdas"}, "true"]}
+  },
+  "Resources": {
+    "CreateBillShockDBFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": {"Fn::Sub": "${EnvironmentName}-createbillshockdb"},
+        "Handler": "billshockdb.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaLoadRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}createbillshock.zip"}
+        },
+        "Runtime": "python3.12",
+        "Timeout": 300,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "CreateBillShockTableFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": {"Fn::Sub": "${EnvironmentName}-createbillshocktable"},
+        "Handler": "createbillshocktable.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaLoadRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}createbillshocktable.zip"}
+        },
+        "Runtime": "python3.12",
+        "Timeout": 300,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "LoadBillShockTableFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": {"Fn::Sub": "${EnvironmentName}-loadbillshocktable"},
+        "Handler": "loadtable.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaLoadRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}loadtable.zip"}
+        },
+        "Runtime": "python3.12",
+        "Timeout": 300,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "BillShockAgentFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": "billshockagent",
+        "Handler": "lambda_function.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaAgentRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}billshockagent.zip"}
+        },
+        "Runtime": "python3.12",
+        "Timeout": 600,
+        "MemorySize": 512,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "CreateTechtsDBTableFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": "createtechtsdbtable",
+        "Handler": "techtscreatetables.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaLoadRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}techtscreatetables.zip" }
+        },
+        "Runtime": "python3.12",
+        "Timeout": 300,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "LoadTechtsRecordsFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": "loadtechtsrecords",
+        "Handler": "techtsinsertrecords.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaLoadRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}techtsinsertrecords.zip"}
+        },
+        "Runtime": "python3.12",
+        "Timeout": 300,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "ListTechtsRecordsFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": "listtechtsrecords",
+        "Handler": "techtslisttables.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaLoadRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}techtslistrecords.zip"}
+        },
+        "Runtime": "python3.12",
+        "Timeout": 300,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "UpdateTechtsModemNodeFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": "updatetechtsmodemnode",
+        "Handler": "techtsupdatemodemnode.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaLoadRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}techtsupdatemodemnode.zip" }
+        },
+        "Runtime": "python3.12",
+        "Timeout": 300,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "RDSAvailabilityCheckFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": {"Fn::Sub": "${EnvironmentName}-rds-availability-check"},
+        "Handler": "index.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaLoadRole"}},
+        "Code": {
+          "ZipFile": {
+            "Fn::Join": ["\n", [
+              "import boto3",
+              "import os",
+              "def lambda_handler(event, context):",
+              "    rds = boto3.client('rds')",
+              "    instance1_id = os.environ['RDS_INSTANCE1_ID']",
+              "    instance2_id = os.environ['RDS_INSTANCE2_ID']",
+              "    def check_instance(instance_id):",
+              "        response = rds.describe_db_instances(DBInstanceIdentifier=instance_id)",
+              "        status = response['DBInstances'][0]['DBInstanceStatus']",
+              "        return status == 'available'",
+              "    instance1_available = check_instance(instance1_id)",
+              "    instance2_available = check_instance(instance2_id)",
+              "    if instance1_available and instance2_available:",
+              "        return {'statusCode': 200, 'body': 'Both RDS instances are available'}",
+              "    else:",
+              "        raise Exception('One or both RDS instances are not available')"
+            ]]
+          }
+        },
+        "Runtime": "python3.12",
+        "Timeout": 60,
+        "MemorySize": 128,
+        "Environment": {
+          "Variables": {
+            "RDS_INSTANCE1_ID": {"Ref": "BillshockDBInstanceId"},
+            "RDS_INSTANCE2_ID": {"Ref": "TechsupportDBInstanceId"}
+          }
+        },
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "TechSpeedStatusAgentFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": "techspeedstatusagent",
+        "Handler": "techtsspeedstatus.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaAgentRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}techtsspeedstatus.zip"}
+        },
+        "Runtime": "python3.12",
+        "Timeout": 600,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "TechBillPaymentStatusAgentFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": "techbillpaymentstatusagent",
+        "Handler": "techtsbillpyamentstatus.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaAgentRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}techtsbillpaymentstatus.zip"}
+        },
+        "Runtime": "python3.12",
+        "Timeout": 600,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "TechCustomerAuthAgentFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": "techcustomerauthagent",
+        "Handler": "techtscustomerauth.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaAgentRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}techtscustomerauth.zip"}
+        },
+        "Runtime": "python3.12",
+        "Timeout": 600,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "TechNodeStatusAgentFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": "technodestatusagent",
+        "Handler": "techtsnodestatus.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaAgentRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"},
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}techtsnodestatus.zip"}
+        },
+        "Runtime": "python3.12",
+        "Timeout": 600,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "TechModemStatusAgentFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "ShouldCreateLambdas",
+      "Properties": {
+        "FunctionName": "techmodemstatusagent",
+        "Handler": "techtsmodemstatus.lambda_handler",
+        "Role": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaAgentRole"}},
+        "Code": {
+          "S3Bucket": { "Ref": "S3BucketName"} ,
+          "S3Key": {"Fn::Sub": "${S3BucketPrefix}techtsmodemstatus.zip"}
+        },
+        "Runtime": "python3.12",
+        "Timeout": 600,
+        "MemorySize": 128,
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-DefaultSecurityGroup"}}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1"}},
+            {"Fn::ImportValue": {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2"}}
+          ]
+        }
+      }
+    },
+    "BillShockAgentNameParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": "/lambda/billshockagentname",
+        "Type": "String",
+        "Value": {"Ref": "BillShockAgentFunction"}
+      }
+    },
+    "BillShockAgentArnParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": "/lambda/billshockagentarn",
+        "Type": "String",
+        "Value": {"Fn::GetAtt": ["BillShockAgentFunction", "Arn"]}
+      }
+    },
+    "LambdaOrchestrationStateMachine": {
+      "Type": "AWS::StepFunctions::StateMachine",
+      "Condition": "ShouldCreateLambdas",
+      "DependsOn": [
+        "CreateBillShockDBFunction",
+        "CreateBillShockTableFunction",
+        "LoadBillShockTableFunction"
+      ],
+      "Properties": {
+        "DefinitionString": {
+          "Fn::Sub": [
+            "{\"StartAt\":\"CheckRDSAvailability\",\"States\":{\"CheckRDSAvailability\":{\"Type\":\"Task\",\"Resource\":\"${RDSAvailabilityCheckFunctionArn}\",\"Next\":\"CreateBillShockDB\",\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailState\"}]},\"CreateBillShockDB\":{\"Type\":\"Task\",\"Resource\":\"${CreateBillShockDBFunctionArn}\",\"Next\":\"CreateBillShockTable\",\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailState\"}]},\"CreateBillShockTable\":{\"Type\":\"Task\",\"Resource\":\"${CreateBillShockTableFunctionArn}\",\"Next\":\"LoadBillShockTable\",\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailState\"}]},\"LoadBillShockTable\":{\"Type\":\"Task\",\"Resource\":\"${LoadBillShockTableFunctionArn}\",\"End\":true,\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailState\"}]},\"FailState\":{\"Type\":\"Fail\",\"Cause\":\"One of the Lambda functions failed\"}}}",
+            {
+              "RDSAvailabilityCheckFunctionArn": {"Fn::GetAtt": ["RDSAvailabilityCheckFunction", "Arn"]},
+              "CreateBillShockDBFunctionArn": {"Fn::GetAtt": ["CreateBillShockDBFunction", "Arn"]},
+              "CreateBillShockTableFunctionArn": {"Fn::GetAtt": ["CreateBillShockTableFunction", "Arn"]},
+              "LoadBillShockTableFunctionArn": {"Fn::GetAtt": ["LoadBillShockTableFunction", "Arn"]}
+            }
+          ]
+        },
+        "RoleArn": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaLoadRole"}},
+        "StateMachineName": {"Fn::Sub": "${EnvironmentName}-billshock-orchestration"}
+      }
+    },
+    "TechSupportStateMachine": {
+      "Type": "AWS::StepFunctions::StateMachine",
+      "Condition": "ShouldCreateLambdas",
+      "DependsOn": [
+        "CreateTechtsDBTableFunction",
+        "LoadTechtsRecordsFunction",
+        "ListTechtsRecordsFunction",
+        "UpdateTechtsModemNodeFunction"
+      ],
+      "Properties": {
+        "DefinitionString": {
+          "Fn::Sub": [
+            "{\"StartAt\":\"CheckRDSAvailability\",\"States\":{\"CheckRDSAvailability\":{\"Type\":\"Task\",\"Resource\":\"${RDSAvailabilityCheckFunctionArn}\",\"Next\":\"CreateTechtsDBTable\",\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailState\"}]},\"CreateTechtsDBTable\":{\"Type\":\"Task\",\"Resource\":\"${CreateTechtsDBTableFunctionArn}\",\"Next\":\"LoadTechtsRecords\",\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailState\"}]},\"LoadTechtsRecords\":{\"Type\":\"Task\",\"Resource\":\"${LoadTechtsRecordsFunctionArn}\",\"Next\":\"ListTechtsRecords\",\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailState\"}]},\"ListTechtsRecords\":{\"Type\":\"Task\",\"Resource\":\"${ListTechtsRecordsFunctionArn}\",\"Next\":\"UpdateTechtsModemNode\",\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailState\"}]},\"UpdateTechtsModemNode\":{\"Type\":\"Task\",\"Resource\":\"${UpdateTechtsModemNodeFunctionArn}\",\"End\":true,\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailState\"}]},\"FailState\":{\"Type\":\"Fail\",\"Cause\":\"One of the Lambda functions failed\"}}}",
+            {
+              "RDSAvailabilityCheckFunctionArn": {"Fn::GetAtt": ["RDSAvailabilityCheckFunction", "Arn"]},
+              "CreateTechtsDBTableFunctionArn": {"Fn::GetAtt": ["CreateTechtsDBTableFunction", "Arn"]},
+              "LoadTechtsRecordsFunctionArn": {"Fn::GetAtt": ["LoadTechtsRecordsFunction", "Arn"]},
+              "ListTechtsRecordsFunctionArn": {"Fn::GetAtt": ["ListTechtsRecordsFunction", "Arn"]},
+              "UpdateTechtsModemNodeFunctionArn": {"Fn::GetAtt": ["UpdateTechtsModemNodeFunction", "Arn"]}
+            }
+          ]
+        },
+        "RoleArn": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaLoadRole"}},
+        "StateMachineName": {"Fn::Sub": "${EnvironmentName}-techsupport-orchestration"}
+      }
+    },
+    "ImmediateExecutionTrigger": {
+      "Type": "AWS::Events::Rule",
+      "Condition": "ShouldCreateLambdas",
+      "DependsOn": ["TechSupportStateMachine"],
+      "Properties": {
+        "Description": "Trigger TechSupport State Machine immediately after stack creation",
+        "State": "ENABLED",
+        "EventPattern": {
+          "source": ["aws.cloudformation"],
+          "detail-type": ["CloudFormation Stack Status Change"],
+          "detail": {
+            "stack-id": [{"Ref": "AWS::StackId"}],
+            "status-details": {
+              "status": ["CREATE_COMPLETE"]
+            }
+          }
+        },
+        "Targets": [{
+          "Arn": {"Ref": "TechSupportStateMachine"},
+          "Id": "ImmediateStateMachineTarget",
+          "RoleArn": {"Fn::ImportValue": {"Fn::Sub": "${IAMStackName}-LambdaLoadRole"}}
+        }]
+      }
+    },
+    "BillShockAgentFunctionResourcePolicy": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {"Ref": "BillShockAgentFunction"},
+        "Action": "lambda:InvokeFunction",
+        "Principal": "bedrock.amazonaws.com",
+        "SourceArn": {"Fn::Sub": "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*"}
+      }
+    },
+    "TechSpeedStatusAgentFunctionResourcePolicy": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {"Ref": "TechSpeedStatusAgentFunction"},
+        "Action": "lambda:InvokeFunction",
+        "Principal": "bedrock.amazonaws.com",
+        "SourceArn": {"Fn::Sub": "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*"}
+      }
+    },
+    "TechBillPaymentStatusAgentFunctionResourcePolicy": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {"Ref": "TechBillPaymentStatusAgentFunction"},
+        "Action": "lambda:InvokeFunction",
+        "Principal": "bedrock.amazonaws.com",
+        "SourceArn": {"Fn::Sub": "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*"}
+      }
+    },
+    "TechCustomerAuthAgentFunctionResourcePolicy": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {"Ref": "TechCustomerAuthAgentFunction"},
+        "Action": "lambda:InvokeFunction",
+        "Principal": "bedrock.amazonaws.com",
+        "SourceArn": {"Fn::Sub": "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*"}
+      }
+    },
+    "TechNodeStatusAgentFunctionResourcePolicy": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {"Ref": "TechNodeStatusAgentFunction"},
+        "Action": "lambda:InvokeFunction",
+        "Principal": "bedrock.amazonaws.com",
+        "SourceArn": {"Fn::Sub": "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*"}
+      }
+    },
+    "TechModemStatusAgentFunctionResourcePolicy": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {"Ref": "TechModemStatusAgentFunction"},
+        "Action": "lambda:InvokeFunction",
+        "Principal": "bedrock.amazonaws.com",
+        "SourceArn": {"Fn::Sub": "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*"}
+      }
+    },
+    "Module2AgentRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "bedrock.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "BedrockModelInvokePolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "bedrock:InvokeModel"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "NetworkTechSupportAgent": {
+      "Type": "AWS::Bedrock::Agent",
+      "Properties": {
+        "AgentName": "network_fault_troubleshooting_agent",
+        "AgentResourceRoleArn": {
+          "Fn::GetAtt": [
+            "Module2AgentRole",
+            "Arn"
+          ]
+        },
+        "Description": "network_fault_troubleshooting_agent",
+        "FoundationModel": "anthropic.claude-3-sonnet-20240229-v1:0",
+        "Instruction": "Role: Home broadband network troubleshooting agent. \nObjective: You should help customers to troubleshoot network issues. \n1. First Step:\n    a) Greet the customer with \"Welcome to Oktank Technical Support, I am here to help you\". This is CRITICAL first step\n2. Query Handling:\n    a) Never deviate from the main question\n    b) Break the main question into subqueries\n    c) Use available tools to get answers to subqueries.\n4. Authentication:  \n    a) Ask the customer to provide customer_id (10 digits) and secret_key (6 digits)\n    b) Never assume these credentials\n    d) Do not invoke any other agents until the customer provides these details and is successfully authenticated. \n5. Available Tools: \n    a) customer_authentication agent: Authenticates customer with customer_id and secret_key. If they don't match, inform the customer. DO NOT INVOKE ANY OTHER AGENTS UNLESS CUSTOMER IS SUCCESSFULLY AUTHENTICATED. \n    b) billstatus agent: Checks if the customer has paid last month's bill.Uses customer_id and secret_key.Non-payment reduces the network speed but never cuts off the network or it will never make the modem down. \n    c) speedstatus agent: Checks current speed based on current month and customer_id. Returns new_upload_speed, new_download_speed, allowed_upload_speed, allowed_download_speed (all in Mbps). If new speeds are lower than allowed speeds, explain the reason\n    d) modem_status agent: Checks modem status based on customer_id. If modem is down, internet/network won't work\n    e) node_status agent: Checks node status based on customer_id. If node is down, internet won't work\n    f) Knowledge Bases:\n      - billpayment-kb: Contains broadband bill payment methods for iOS, Android, macOS, and Windows. Always ask the customer which device type they have now- windows, macOS, Andriod or iOS. Based on the device type, provide the relevant step by step instructions. \n      - modem-troubleshooting: Used for troubleshooting customer modem issues. don't provide all steps at once\n6. Agent Invocation Rules:\n    a) Pass actual customer_id and secret_key to all agents\n    b) Pass all responses from agents to the next agent\n7. Response Generation:\n    a) Do not use your own knowledge to answer queries\n    b) Provide comprehensive, coherent responses based on agent findings\n8. Troubleshooting Logic:\n    a) If speedstatus agent reports slow speed, check bill payment status. Remember non-payment results in slow network speed and it will never make the network down.Explain the old and new speed\n    b) Network won't work if modem or node is down (or both)\n    c) Bill non-payment only reduces network speed, never causes modem to go down or never make the network down\n9. Modem Troubleshooting:\n    a) Ask if the customer is ready to troubleshoot\n    b) Guide customer step-by-step, don't provide all steps at once\n    c) Refine steps based on customer feedback\n10. Bill Payment \n    a) If there is a brand (Samsung) which manufactures mobile, computers and tablets then ask for more details like its a mobile, tablet or computer. don't provide all steps at once.\n11. System Update Times:\n    a) After bill payment confirmation: Up to 1 hour for backend system update\n    b) After successful modem troubleshooting: Up to 1 hour for backend system update\n12. Node Failure:\n      a) No troubleshooting required from customer side\n13. Remember:\n    a) Use knowledge bases and agents for information, not your own knowledge\n    b) Provide coherent, comprehensive responses based on agent findings\n    c) Guide customers through modem troubleshooting only when necessary\n14. Here is an example\nQuestion: Why my network is down?\nYou will first greet the customer \"Welcome to Oktank Technical Support, I am here to help you\". You will apologize to the customer and rephrase the question then ask the customer for customer_id and secret_key. Successfully Authenticate the customer then break down the query into sub queries and invoke all available tools to provide a coherent answer.",
+        "ActionGroups": [
+          {
+            "ActionGroupName": "billstatus",
+            "Description": "use this agent to check whether customer has paid last month bill or not",
+            "ActionGroupExecutor": {
+              "Lambda": {
+                "Fn::GetAtt": [
+                  "TechBillPaymentStatusAgentFunction",
+                  "Arn"
+                ]
+              }
+            },
+            "FunctionSchema": {
+              "Functions": [
+                {
+                  "Name": "billstatus",
+                  "Description": "get the bill payment status of the last month for the customer",
+                  "Parameters": {
+                    "customer_id": {
+                      "Type": "number",
+                      "Description": "This is the customer id of the customer",
+                      "Required": true
+                    },
+                    "secret_key": {
+                      "Type": "string",
+                      "Description": "secret key of the customer",
+                      "Required": true
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "ActionGroupName": "customer_authentication",
+            "Description": "authenticates the customer with customer_id and secret_key",
+            "ActionGroupExecutor": {
+              "Lambda": {
+                "Fn::GetAtt": [
+                  "TechCustomerAuthAgentFunction",
+                  "Arn"
+                ]
+              }
+            },
+            "FunctionSchema": {
+              "Functions": [
+                {
+                  "Name": "customer_authentication",
+                  "Description": "matches customer_id and secret_key and if they match then it returns customer is authenticated",
+                  "Parameters": {
+                    "customer_id": {
+                      "Type": "number",
+                      "Description": "This is the customer id of the customer",
+                      "Required": true
+                    },
+                    "secret_key": {
+                      "Type": "string",
+                      "Description": "secret key of the customer",
+                      "Required": true
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "ActionGroupName": "modem_status",
+            "Description": "based on the customer_id returns the modem status for the customer",
+            "ActionGroupExecutor": {
+              "Lambda": {
+                "Fn::GetAtt": [
+                  "TechModemStatusAgentFunction",
+                  "Arn"
+                ]
+              }
+            },
+            "FunctionSchema": {
+              "Functions": [
+                {
+                  "Name": "modemstatus",
+                  "Description": "based on the customer_id returns the modem status for the customer",
+                  "Parameters": {
+                    "customer_id": {
+                      "Type": "number",
+                      "Description": "This is the customer id of the customer",
+                      "Required": true
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "ActionGroupName": "node_status",
+            "Description": "check and return the node status for a particular customer",
+            "ActionGroupExecutor": {
+              "Lambda": {
+                "Fn::GetAtt": [
+                  "TechNodeStatusAgentFunction",
+                  "Arn"
+                ]
+              }
+            },
+            "FunctionSchema": {
+              "Functions": [
+                {
+                  "Name": "node-status",
+                  "Description": "check and return the node status for a particular customer",
+                  "Parameters": {
+                    "customer_id": {
+                      "Type": "number",
+                      "Description": "This is the customer id of the customer",
+                      "Required": true
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "ActionGroupName": "speedstatus",
+            "Description": "check the current speed of user",
+            "ActionGroupExecutor": {
+              "Lambda": {
+                "Fn::GetAtt": [
+                  "TechSpeedStatusAgentFunction",
+                  "Arn"
+                ]
+              }
+            },
+            "FunctionSchema": {
+              "Functions": [
+                {
+                  "Name": "speedstatus",
+                  "Description": "check the current speed of user",
+                  "Parameters": {
+                    "customer_id": {
+                      "Type": "number",
+                      "Description": "This is the customer id of the customer",
+                      "Required": true
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "AutoPrepare": true
+      }
+    }
+  },
+  "Outputs": {
+    "StackName": {
+      "Description": "The name of this stack",
+      "Value": {"Ref": "AWS::StackName"},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}"}}
+    },
+    "CreateBillShockDBFunctionArn": {
+      "Description": "ARN of the CreateBillShockDB Lambda function",
+      "Value": {"Fn::GetAtt": ["CreateBillShockDBFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-CreateBillShockDBFunctionArn"}}
+    },
+    "CreateBillShockTableFunctionArn": {
+      "Description": "ARN of the CreateBillShockTable Lambda function",
+      "Value": {"Fn::GetAtt": ["CreateBillShockTableFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-CreateBillShockTableFunctionArn"}}
+    },
+    "LoadBillShockTableFunctionArn": {
+      "Description": "ARN of the LoadBillShockTable Lambda function",
+      "Value": {"Fn::GetAtt": ["LoadBillShockTableFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-LoadBillShockTableFunctionArn"}}
+    },
+    "BillShockAgentFunctionArn": {
+      "Description": "ARN of the BillShockAgent Lambda function",
+      "Value": {"Fn::GetAtt": ["BillShockAgentFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-BillShockAgentFunctionArn"}}
+    },
+    "CreateTechtsDBTableFunctionArn": {
+      "Description": "ARN of the CreateTechtsDBTable Lambda function",
+      "Value": {"Fn::GetAtt": ["CreateTechtsDBTableFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-CreateTechtsDBTableFunctionArn"}}
+    },
+    "LoadTechtsRecordsFunctionArn": {
+      "Description": "ARN of the LoadTechtsRecords Lambda function",
+      "Value": {"Fn::GetAtt": ["LoadTechtsRecordsFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-LoadTechtsRecordsFunctionArn"}}
+    },
+    "ListTechtsRecordsFunctionArn": {
+      "Description": "ARN of the ListTechtsRecords Lambda function",
+      "Value": {"Fn::GetAtt": ["ListTechtsRecordsFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-ListTechtsRecordsFunctionArn"}}
+    },
+    "UpdateTechtsModemNodeFunctionArn": {
+      "Description": "ARN of the UpdateTechtsModemNode Lambda function",
+      "Value": {"Fn::GetAtt": ["UpdateTechtsModemNodeFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-UpdateTechtsModemNodeFunctionArn"}}
+    },
+    "RDSAvailabilityCheckFunctionArn": {
+      "Description": "ARN of the RDS Availability Check Lambda function",
+      "Value": {"Fn::GetAtt": ["RDSAvailabilityCheckFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-RDSAvailabilityCheckFunctionArn"}}
+    },
+    "TechSpeedStatusAgentFunctionArn": {
+      "Description": "ARN of the TechSpeedStatusAgent Lambda function",
+      "Value": {"Fn::GetAtt": ["TechSpeedStatusAgentFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-TechSpeedStatusAgentFunctionArn"}}
+    },
+    "TechBillPaymentStatusAgentFunctionArn": {
+      "Description": "ARN of the TechBillPaymentStatusAgent Lambda function",
+      "Value": {"Fn::GetAtt": ["TechBillPaymentStatusAgentFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-TechBillPaymentStatusAgentFunctionArn"}}
+    },
+    "TechCustomerAuthAgentFunctionArn": {
+      "Description": "ARN of the TechCustomerAuthAgent Lambda function",
+      "Value": {"Fn::GetAtt": ["TechCustomerAuthAgentFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-TechCustomerAuthAgentFunctionArn"}}
+    },
+    "TechNodeStatusAgentFunctionArn": {
+      "Description": "ARN of the TechNodeStatusAgent Lambda function",
+      "Value": {"Fn::GetAtt": ["TechNodeStatusAgentFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-TechNodeStatusAgentFunctionArn"}}
+    },
+    "TechModemStatusAgentFunctionArn": {
+      "Description": "ARN of the TechModemStatusAgent Lambda function",
+      "Value": {"Fn::GetAtt": ["TechModemStatusAgentFunction", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-TechModemStatusAgentFunctionArn"}}
+    },
+    "BillShockStateMachineArn": {
+      "Description": "ARN of the BillShock Lambda Orchestration State Machine",
+      "Value": {"Ref": "LambdaOrchestrationStateMachine"},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-BillShockStateMachineArn"}}
+    },
+    "TechSupportStateMachineArn": {
+      "Description": "ARN of the TechSupport State Machine",
+      "Value": {"Ref": "TechSupportStateMachine"},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-TechSupportStateMachineArn"}}
+    }
+  }
+}

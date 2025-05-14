@@ -1,0 +1,287 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowIAMPassRole",
+            "Effect": "Allow",
+            "Action": [
+                "iam:PassRole"
+            ],
+            "Resource": [
+                "arn:aws:iam::*:role/WSParticipantRole",
+                "arn:aws:iam::*:role/WSParticipantRole/*",
+                "arn:aws:iam::*:role/Cloud9-*",
+                "arn:aws:iam::*:role/service-role/*"
+            ]
+        },
+        {
+            "Sid": "AllowS3FullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "s3:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowBedrockFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "bedrock:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowRDSFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "rds:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowCloudWatchFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "cloudwatch:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowEC2FullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowVPCRelatedActions",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:*Vpc*",
+                "ec2:*Subnet*",
+                "ec2:*Gateway*",
+                "ec2:*Vpn*",
+                "ec2:*NetworkAcl*",
+                "ec2:*SecurityGroup*",
+                "ec2:*RouteTable*",
+                "ec2:*NetworkInterface*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowDynamoDBFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowLambdaFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "lambda:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowVPCEndpointActions",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:*VpcEndpoint*",
+                "ec2:DescribeVpcEndpoints",
+                "ec2:ModifyVpcEndpoint"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowCloudFormationFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowSecretsManagerFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowSSMFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "ssm:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowBedrockModelActions",
+            "Effect": "Allow",
+            "Action": [
+                "bedrock:*Model*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowBedrockAgentActions",
+            "Effect": "Allow",
+            "Action": [
+                "bedrock:*Agent*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowStepFunctionsFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "states:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "AllowCloudWatchLogsAccess",
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+                "logs:DescribeLogGroups",
+                "logs:DescribeLogStreams",
+                "logs:GetLogEvents",
+                "logs:FilterLogEvents"
+            ],
+            "Resource": [
+                "arn:aws:logs:*:*:*"
+            ]
+        },
+        {
+            "Sid": "AllowAWSMarketplaceViewSubscriptions",
+            "Effect": "Allow",
+            "Action": [
+                "aws-marketplace:ViewSubscriptions",
+                "aws-marketplace:Subscribe"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "AllowOpenSearchServerlessFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "aoss:*"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "AllowIAMForOpenSearchServerless",
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreateServiceLinkedRole",
+                "iam:AttachRolePolicy",
+                "iam:PutRolePolicy"
+            ],
+            "Resource": "arn:aws:iam::*:role/aws-service-role/aoss.amazonaws.com/*"
+        },
+        {
+            "Sid": "AllowIAMRoleCreationForBedrock",
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreateRole",
+                "iam:AttachRolePolicy",
+                "iam:PutRolePolicy",
+                "iam:CreatePolicy",
+                "iam:GetPolicy",
+                "iam:ListPolicyVersions",
+                "iam:CreatePolicyVersion",
+                "iam:DeletePolicy",
+                "iam:DeletePolicyVersion",
+                "iam:SetDefaultPolicyVersion",
+                "sts:GetCallerIdentity"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "AllowElasticsearchOpenSearchAccess",
+            "Effect": "Allow",
+            "Action": [
+                "es:*",
+                "es:ListDomainNames"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "AllowCodePipelineFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "codepipeline:*"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "AllowCodeBuildFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "codebuild:*"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "AllowCodeDeployFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "codedeploy:*"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "AllowAPIGatewayFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "apigateway:*"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "AllowECRFullAccess",
+            "Effect": "Allow",
+            "Action": [
+                "ecr:*"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

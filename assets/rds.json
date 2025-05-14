@@ -1,0 +1,295 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "RDS stack with two databases: billshock and techsupport",
+  "Parameters": {
+    "EnvironmentName": {
+      "Type": "String",
+      "Default": "ccj",
+      "Description": "Environment name for the stack"
+    },
+    "VpcId": {
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "PrivateSubnet1": {
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "PrivateSubnet2": {
+      "Type": "AWS::EC2::Subnet::Id"
+    }
+  },
+  "Resources": {
+    "DBSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupDescription": "Subnet group for RDS databases",
+        "SubnetIds": [
+          {
+            "Ref": "PrivateSubnet1"
+          },
+          {
+            "Ref": "PrivateSubnet2"
+          }
+        ]
+      }
+    },
+    "DBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group for RDS databases",
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "3306",
+            "ToPort": "3306",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    "BillshockDBSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${EnvironmentName}-billshock-db-secret"
+        },
+        "Description": "Billshock RDS database admin credentials",
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{\"username\": \"admin\"}",
+          "GenerateStringKey": "password",
+          "PasswordLength": 16,
+          "ExcludeCharacters": "\"@/\\"
+        }
+      }
+    },
+    "TechsupportDBSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${EnvironmentName}-techsupport-db-secret"
+        },
+        "Description": "Techsupport RDS database admin credentials",
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{\"username\": \"admin\"}",
+          "GenerateStringKey": "password",
+          "PasswordLength": 16,
+          "ExcludeCharacters": "\"@/\\"
+        }
+      }
+    },
+    "BillshockDBInstance": {
+      "Type": "AWS::RDS::DBInstance",
+      "DependsOn": [
+        "BillshockDBSecret"
+      ],
+      "Properties": {
+        "DBName": "billshock",
+        "Engine": "mysql",
+        "EngineVersion": "8.0.35",
+        "MasterUsername": {
+          "Fn::Join": [
+            "",
+            [
+              "{{resolve:secretsmanager:",
+              {
+                "Ref": "BillshockDBSecret"
+              },
+              ":SecretString:username}}"
+            ]
+          ]
+        },
+        "MasterUserPassword": {
+          "Fn::Join": [
+            "",
+            [
+              "{{resolve:secretsmanager:",
+              {
+                "Ref": "BillshockDBSecret"
+              },
+              ":SecretString:password}}"
+            ]
+          ]
+        },
+        "DBInstanceClass": "db.m6gd.large",
+        "AllocatedStorage": "30",
+        "StorageType": "gp3",
+        "PubliclyAccessible": false,
+        "DBSubnetGroupName": {
+          "Ref": "DBSubnetGroup"
+        },
+        "VPCSecurityGroups": [
+          {
+            "Ref": "DBSecurityGroup"
+          }
+        ],
+        "MultiAZ": false,
+        "DeletionProtection": true
+      },
+      "UpdateReplacePolicy": "Delete",
+      "DeletionPolicy": "Delete"
+    },
+    "TechsupportDBInstance": {
+      "Type": "AWS::RDS::DBInstance",
+      "DependsOn": [
+        "TechsupportDBSecret"
+      ],
+      "Properties": {
+        "DBName": "techsupport",
+        "Engine": "mysql",
+        "EngineVersion": "8.0.35",
+        "MasterUsername": {
+          "Fn::Join": [
+            "",
+            [
+              "{{resolve:secretsmanager:",
+              {
+                "Ref": "TechsupportDBSecret"
+              },
+              ":SecretString:username}}"
+            ]
+          ]
+        },
+        "MasterUserPassword": {
+          "Fn::Join": [
+            "",
+            [
+              "{{resolve:secretsmanager:",
+              {
+                "Ref": "TechsupportDBSecret"
+              },
+              ":SecretString:password}}"
+            ]
+          ]
+        },
+        "DBInstanceClass": "db.m6gd.large",
+        "AllocatedStorage": "30",
+        "StorageType": "gp3",
+        "PubliclyAccessible": false,
+        "DBSubnetGroupName": {
+          "Ref": "DBSubnetGroup"
+        },
+        "VPCSecurityGroups": [
+          {
+            "Ref": "DBSecurityGroup"
+          }
+        ],
+        "MultiAZ": false,
+        "DeletionProtection": true
+      },
+      "UpdateReplacePolicy": "Delete",
+      "DeletionPolicy": "Delete"
+    },
+    "StackNameParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": {"Fn::Sub": "/${EnvironmentName}/RDS/StackName"},
+        "Type": "String",
+        "Value": {"Ref": "AWS::StackName"}
+      }
+    },
+    "BillshockDBEndpointParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": {"Fn::Sub": "/${EnvironmentName}/RDS/BillshockDBEndpoint"},
+        "Type": "String",
+        "Value": {"Fn::GetAtt": ["BillshockDBInstance", "Endpoint.Address"]}
+      }
+    },
+    "TechsupportDBEndpointParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": {"Fn::Sub": "/${EnvironmentName}/RDS/TechsupportDBEndpoint"},
+        "Type": "String",
+        "Value": {"Fn::GetAtt": ["TechsupportDBInstance", "Endpoint.Address"]}
+      }
+    },
+    "DBSubnetGroupNameParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": {"Fn::Sub": "/${EnvironmentName}/RDS/DBSubnetGroupName"},
+        "Type": "String",
+        "Value": {"Ref": "DBSubnetGroup"}
+      }
+    },
+    "DBSecurityGroupIdParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": {"Fn::Sub": "/${EnvironmentName}/RDS/DBSecurityGroupId"},
+        "Type": "String",
+        "Value": {"Ref": "DBSecurityGroup"}
+      }
+    },
+    "BillshockDBSecretArnParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": {"Fn::Sub": "/${EnvironmentName}/RDS/BillshockDBSecretArn"},
+        "Type": "String",
+        "Value": {"Ref": "BillshockDBSecret"}
+      }
+    },
+    "TechsupportDBSecretArnParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": {"Fn::Sub": "/${EnvironmentName}/RDS/TechsupportDBSecretArn"},
+        "Type": "String",
+        "Value": {"Ref": "TechsupportDBSecret"}
+      }
+    },
+    "BillshockDBInstanceIdParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": {"Fn::Sub": "/${EnvironmentName}/RDS/BillshockDBInstanceId"},
+        "Type": "String",
+        "Value": {"Ref": "BillshockDBInstance"}
+      }
+    },
+    "TechsupportDBInstanceIdParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": {"Fn::Sub": "/${EnvironmentName}/RDS/TechsupportDBInstanceId"},
+        "Type": "String",
+        "Value": {"Ref": "TechsupportDBInstance"}
+      }
+    }
+  },
+  "Outputs": {
+    "StackName": {
+      "Description": "The name of this stack",
+      "Value": {"Ref": "AWS::StackName"}
+    },
+    "BillshockDBEndpoint": {
+      "Description": "Connection endpoint for the Billshock database",
+      "Value": {"Fn::GetAtt": ["BillshockDBInstance", "Endpoint.Address"]}
+    },
+    "TechsupportDBEndpoint": {
+      "Description": "Connection endpoint for the Techsupport database",
+      "Value": {"Fn::GetAtt": ["TechsupportDBInstance", "Endpoint.Address"]}
+    },
+    "DBSubnetGroupName": {
+      "Description": "Name of the DB Subnet Group",
+      "Value": {"Ref": "DBSubnetGroup"}
+    },
+    "DBSecurityGroupId": {
+      "Description": "ID of the DB Security Group",
+      "Value": {"Ref": "DBSecurityGroup"}
+    },
+    "BillshockDBSecretArn": {
+      "Description": "ARN of the Secret Manager secret for Billshock DB credentials",
+      "Value": {"Ref": "BillshockDBSecret"}
+    },
+    "TechsupportDBSecretArn": {
+      "Description": "ARN of the Secret Manager secret for Techsupport DB credentials",
+      "Value": {"Ref": "TechsupportDBSecret"}
+    },
+    "BillshockDBInstanceId": {
+      "Description": "ID of the Billshock RDS DB Instance",
+      "Value": {"Ref": "BillshockDBInstance"}
+    },
+    "TechsupportDBInstanceId": {
+      "Description": "ID of the Techsupport RDS DB Instance",
+      "Value": {"Ref": "TechsupportDBInstance"}
+    }
+  }
+}

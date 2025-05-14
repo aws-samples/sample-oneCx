@@ -1,0 +1,70 @@
+{
+  "spend_level": {
+    "high": 100,
+    "medium": 60
+  },
+  "usage": {
+    "video_streaming": {
+      "high": 10,
+      "medium": 5
+    },
+    "voice_minutes": {
+      "high": 800,
+      "medium": 300
+    },
+    "data_browsing": {
+      "high": 8,
+      "medium": 3
+    }
+  },
+  "impressions": {
+    "phone_models": [
+      "iPhone 12",
+      "Samsung Galaxy S21",
+      "Google Pixel 6",
+      "OnePlus 9"
+    ],
+    "offering_types": [
+      "mobile phone with plan",
+      "sim only plan"
+    ]
+  },
+  "network_experience": {
+    "coverage": {
+      "good": 95,
+      "ok": 80
+    },
+    "qoe": {
+      "service_outage": {
+        "high": 180,
+        "medium": 90,
+        "low": 30
+      },
+      "dropped_calls": {
+        "high": 30,
+        "medium": 25,
+        "low": 10
+      },
+      "throughput": {
+        "high": 10,
+        "medium": 2
+      },
+      "voice_quality": {
+        "high": 4.5,
+        "medium": 3.5
+      },
+      "coverage": {
+        "home_location": {
+          "good": 20,
+          "medium": 30,
+          "bad": 40
+        },
+        "other_locations": {
+          "good": 20,
+          "medium": 30,
+          "bad": 40
+        }
+      }
+    }
+  }
+}

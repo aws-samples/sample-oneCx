@@ -1,0 +1,1768 @@
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: 'S3 bucket containing the Lambda function code'
+  S3BucketPrefix:
+    Type: String
+    Description: "Name of the S3 bucket Prefix containing the code"
+  CustomerJourneyApiGatewayUrl:
+    Type: String
+    Description: URL for Customer Journey API Gateway
+    Default: ""
+  CustomerJourneyApiGatewayApiKey:
+    Type: String
+    Description: API Key for Customer Journey API Gateway
+    NoEcho: true
+    Default: ""
+  CustomerJourneyToBedrockApiGatewayUrl:
+    Type: String
+    Description: URL for Customer Journey to Bedrock API Gateway
+    Default: ""
+  CustomerJourneyToBedrockApiGatewayApiKey:
+    Type: String
+    Description: API Key for Customer Journey to Bedrock API Gateway
+    NoEcho: true
+    Default: ""
+  ApiGatewayUrl:
+    Type: String
+    Description: Main API Gateway URL
+    Default: ""
+  ApiGatewayApiKey:
+    Type: String
+    Description: Main API Gateway API Key
+    NoEcho: true
+    Default: ""
+    
+
+Resources:
+  DomainString:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Type: String
+      Value: !Join
+        - ''
+        - - 'myprefix'
+          - !Select 
+            - 2
+            - !Split ["/", !Ref 'AWS::StackId']  # Fixed Split syntax
+          - !Select
+            - 0
+            - !Split ["-", !Ref 'AWS::AccountId']  # Fixed Split syntax
+
+
+  WebappBucket620531E5:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: 
+        Fn::Join:
+          - '-'
+          - - 'webapp'
+            - !Ref 'AWS::AccountId'
+            - !Ref 'AWS::Region'
+            - !Select [4, !Split ['-', !Select [2, !Split ['/', !Ref AWS::StackId]]]]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      aws:cdk:path: CdkStack/WebappBucket/Resource
+  WebappBucketPolicyB03C4E01:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: WebappBucket620531E5
+      PolicyDocument:
+        Statement:
+          - Action: s3:*
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+            Effect: Deny
+            Principal:
+              AWS: "*"
+            Resource:
+              - Fn::GetAtt:
+                  - WebappBucket620531E5
+                  - Arn
+              - Fn::Join:
+                  - ""
+                  - - Fn::GetAtt:
+                        - WebappBucket620531E5
+                        - Arn
+                    - /*
+        Version: "2012-10-17"
+    Metadata:
+      aws:cdk:path: CdkStack/WebappBucket/Policy/Resource
+  
+  ApiKeyRetrieverRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ApiGatewayAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                Resource: !Sub 'arn:aws:apigateway:${AWS::Region}::/apikeys/*'
+
+  ApiKeyRetrieverFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.9
+      Handler: index.handler
+      Role: !GetAtt ApiKeyRetrieverRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import cfnresponse
+          
+          def handler(event, context):
+              try:
+                  if event['RequestType'] in ['Create', 'Update']:
+                      # Get the API key ID from the properties
+                      api_key_id = event['ResourceProperties']['ApiKeyId']
+                      
+                      # Initialize API Gateway client
+                      apigw = boto3.client('apigateway')
+                      
+                      # Get the API key
+                      response = apigw.get_api_key(
+                          apiKey=api_key_id,
+                          includeValue=True
+                      )
+                      
+                      # Send success response with the API key value
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                          'ApiKeyValue': response['value']
+                      })
+                  elif event['RequestType'] == 'Delete':
+                      # Nothing to do on delete
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                      
+              except Exception as e:
+                  print(e)
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {
+                      'Error': str(e)
+                  })
+  
+  RetrieveCustomerJourneyChatResponseApiKey:
+    Type: Custom::ApiKeyRetriever
+    Properties:
+      ServiceToken: !GetAtt ApiKeyRetrieverFunction.Arn
+      ApiKeyId: !ImportValue 'cfn-intro-main-GetCustomerJourneyChatResponseAPIKey'
+
+  RetrieveGetCustomerProfileAPIKey:
+    Type: Custom::ApiKeyRetriever
+    Properties:
+      ServiceToken: !GetAtt ApiKeyRetrieverFunction.Arn
+      ApiKeyId: !ImportValue 'cfn-intro-main-GetCustomerProfileAPIKey'
+
+  RetrieveCustomerJourneyApiKey:
+    Type: Custom::ApiKeyRetriever
+    Properties:
+      ServiceToken: !GetAtt ApiKeyRetrieverFunction.Arn
+      ApiKeyId: !ImportValue 'cfn-intro-main-GetCustomerJourneyAPIKey'
+  
+  RetrieveCustomerJourneyToBedrockApiKey:
+    Type: Custom::ApiKeyRetriever
+    Properties:
+      ServiceToken: !GetAtt ApiKeyRetrieverFunction.Arn
+      ApiKeyId: !ImportValue 'cfn-intro-main-GetCustomerJourneyToBedrockAPIKey'
+
+  RetrieveOfferNegotiationApiKey:
+    Type: Custom::ApiKeyRetriever
+    Properties:
+      ServiceToken: !GetAtt ApiKeyRetrieverFunction.Arn
+      ApiKeyId: !Ref ApiGatewayApiKeyC7E404FA
+
+  ConfigUploadRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3PutObject
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub ${WebappBucket620531E5.Arn}/*
+
+  MyLambdaFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      AuthType: AWS_IAM
+      TargetFunctionArn:
+        Fn::ImportValue: MAOStack-LambdaFunctionName
+      Cors:
+        AllowCredentials: true
+        AllowHeaders: 
+          - '*'
+        AllowMethods:
+          - '*'
+        AllowOrigins:
+          - Fn::Join:
+              - ""
+              - - "https://"
+                - !Ref ReactAppApi829DA0EA
+                - ".execute-api."
+                - !Ref AWS::Region
+                - "."
+                - !Ref AWS::URLSuffix
+        MaxAge: 86400
+
+  ConfigUploadFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt ConfigUploadRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import cfnresponse
+          
+          def handler(event, context):
+              try:
+                  if event['RequestType'] in ['Create', 'Update']:
+                      s3 = boto3.client('s3')
+                      config_data = {
+                          "multiAgentLambdaFunctionUrl": event['ResourceProperties']['MultiAgentLambdaFunctionUrl'],
+                          "apiGatewayUrl": event['ResourceProperties']['ApiGatewayUrl'],
+                          "apiGatewayApiKey": event['ResourceProperties']['ApiGatewayApiKey'],
+                          "customerJourneyApiGatewayUrl": event['ResourceProperties']['CustomerJourneyApiGatewayUrl'],
+                          "customerJourneyApiGatewayApiKey": event['ResourceProperties']['CustomerJourneyApiGatewayApiKey'],
+                          "customerJourneyToBedrockApiGatewayUrl": event['ResourceProperties']['CustomerJourneyToBedrockApiGatewayUrl'],
+                          "customerJourneyToBedrockApiGatewayApiKey": event['ResourceProperties']['CustomerJourneyToBedrockApiGatewayApiKey'],
+                          "awsRegion": event['ResourceProperties']['AwsRegion'],
+                          "userPoolId": event['ResourceProperties']['UserPoolId'],
+                          "userPoolWebClientId": event['ResourceProperties']['UserPoolClientId'],
+                          "userPoolDomain": event['ResourceProperties']['UserPoolDomain'],
+                          "identityPoolId": event['ResourceProperties']['IdentityPoolId'],
+                          "offerApiGatewayUrl": event['ResourceProperties']['OfferApiGatewayUrl'],
+                          "offerApiGatewayApiKey": event['ResourceProperties']['OfferApiGatewayApiKey'],
+                          "getCustomerProfileUrl": event['ResourceProperties']['GetCustomerProfileUrl'],
+                          "getCustomerProfileApiKey": event['ResourceProperties']['GetCustomerProfileApiKey'],
+                      }
+                      
+                      s3.put_object(
+                          Bucket=event['ResourceProperties']['BucketName'],
+                          Key='config.json',
+                          Body=json.dumps(config_data, indent=2),
+                          ContentType='application/json'
+                      )
+                  
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+              except Exception as e:
+                  print(e)
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {})
+      Runtime: python3.9
+      Timeout: 30
+
+  ConfigurationFile:
+    Type: Custom::S3Upload
+    Properties:
+      ServiceToken: !GetAtt ConfigUploadFunction.Arn
+      BucketName: !Ref WebappBucket620531E5
+      MultiAgentLambdaFunctionUrl: !GetAtt MyLambdaFunctionUrl.FunctionUrl
+      #MultiAgentLambdaFunctionUrl: ''
+      OfferApiGatewayUrl: !Join
+        - ""
+        - - https://
+          - !Ref ApiGateway11E7F47B
+          - .execute-api.
+          - !Ref AWS::Region
+          - "."
+          - !Ref AWS::URLSuffix
+          - /
+          - prod
+      OfferApiGatewayApiKey: !GetAtt RetrieveOfferNegotiationApiKey.ApiKeyValue
+
+      #ApiGatewayUrl: !Ref ApiGatewayUrl
+      ApiGatewayUrl:
+        Fn::ImportValue: 'cfn-intro-main-GetCustomerJourneyChatResponseAPIUrl'
+      
+      GetCustomerProfileUrl:
+        Fn::ImportValue: 'cfn-intro-main-GetCustomerProfileAPIUrl'
+
+      GetCustomerProfileApiKey: !GetAtt RetrieveGetCustomerProfileAPIKey.ApiKeyValue
+
+      #ApiGatewayApiKey: !Ref ApiGatewayApiKey
+      ApiGatewayApiKey: !GetAtt RetrieveCustomerJourneyChatResponseApiKey.ApiKeyValue
+
+      #CustomerJourneyApiGatewayUrl: !Ref CustomerJourneyApiGatewayUrl
+      CustomerJourneyApiGatewayUrl:
+        Fn::ImportValue: 'cfn-intro-main-GetCustomerJourneyAPIUrl'
+      
+      #CustomerJourneyApiGatewayApiKey: !Ref CustomerJourneyApiGatewayApiKey
+      CustomerJourneyApiGatewayApiKey: !GetAtt RetrieveCustomerJourneyApiKey.ApiKeyValue
+
+      #CustomerJourneyToBedrockApiGatewayUrl: !Ref CustomerJourneyToBedrockApiGatewayUrl
+      CustomerJourneyToBedrockApiGatewayUrl:
+        Fn::ImportValue: 'cfn-intro-main-GetCustomerJourneyToBedrockAPIUrl'
+
+      #CustomerJourneyToBedrockApiGatewayApiKey: !Ref CustomerJourneyToBedrockApiGatewayApiKey
+      CustomerJourneyToBedrockApiGatewayApiKey: !GetAtt RetrieveCustomerJourneyToBedrockApiKey.ApiKeyValue
+      AwsRegion: !Ref 'AWS::Region'
+      UserPoolId: !Ref UserPool6BA7E5F2
+      UserPoolClientId: !Ref UserPoolUserPoolClient40176907
+      UserPoolDomain: !Sub '${DomainString.Value}.auth.${AWS::Region}.amazoncognito.com'
+      IdentityPoolId: !Ref IdentityPool
+
+  ReactAppApi829DA0EA:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: ReactAppApi
+    Metadata:
+      aws:cdk:path: CdkStack/ReactAppApi/Resource
+  ReactAppApiDeployment8EABEF08ac3153ecfb00154da5d55743afbd7009:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      Description: Automatically created by the RestApi construct
+      RestApiId:
+        Ref: ReactAppApi829DA0EA
+    DependsOn:
+      - ReactAppApikeyGETEE8B0F0A
+      - ReactAppApikeyOPTIONSB140BDFB
+      - ReactAppApikey2423C075
+      - ReactAppApiGET3D613A21
+      - ReactAppApiOPTIONS89B87E02
+    Metadata:
+      aws:cdk:path: CdkStack/ReactAppApi/Deployment/Resource
+  ReactAppApiDeploymentStageprod854CC239:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId:
+        Ref: ReactAppApiDeployment8EABEF08ac3153ecfb00154da5d55743afbd7009
+      RestApiId:
+        Ref: ReactAppApi829DA0EA
+      StageName: prod
+    Metadata:
+      aws:cdk:path: CdkStack/ReactAppApi/DeploymentStage.prod/Resource
+  ReactAppApiOPTIONS89B87E02:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,PUT,POST,DELETE,PATCH,HEAD'"
+            StatusCode: "204"
+        RequestTemplates:
+          application/json: "{ statusCode: 200 }"
+        Type: MOCK
+      MethodResponses:
+        - ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+          StatusCode: "204"
+      ResourceId:
+        Fn::GetAtt:
+          - ReactAppApi829DA0EA
+          - RootResourceId
+      RestApiId:
+        Ref: ReactAppApi829DA0EA
+    Metadata:
+      aws:cdk:path: CdkStack/ReactAppApi/Default/OPTIONS/Resource
+  ReactAppApikey2423C075:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Fn::GetAtt:
+          - ReactAppApi829DA0EA
+          - RootResourceId
+      PathPart: "{key+}"
+      RestApiId:
+        Ref: ReactAppApi829DA0EA
+    Metadata:
+      aws:cdk:path: CdkStack/ReactAppApi/Default/{key+}/Resource
+  ReactAppApikeyOPTIONSB140BDFB:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,PUT,POST,DELETE,PATCH,HEAD'"
+            StatusCode: "204"
+        RequestTemplates:
+          application/json: "{ statusCode: 200 }"
+        Type: MOCK
+      MethodResponses:
+        - ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+          StatusCode: "204"
+      ResourceId:
+        Ref: ReactAppApikey2423C075
+      RestApiId:
+        Ref: ReactAppApi829DA0EA
+    Metadata:
+      aws:cdk:path: CdkStack/ReactAppApi/Default/{key+}/OPTIONS/Resource
+  ReactAppApikeyGETEE8B0F0A:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration:
+        Credentials:
+          Fn::GetAtt:
+            - ApiGatewayS3Role9D5CA7F9
+            - Arn
+        IntegrationHttpMethod: GET
+        IntegrationResponses:
+          - ResponseParameters:
+              method.response.header.Content-Type: integration.response.header.Content-Type
+            StatusCode: "200"
+        RequestParameters:
+          integration.request.path.key: method.request.path.key
+        Type: AWS
+        Uri:
+          Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - ":apigateway:"
+              - Ref: AWS::Region
+              - :s3:path/
+              - Ref: WebappBucket620531E5
+              - /{key}
+      MethodResponses:
+        - ResponseParameters:
+            method.response.header.Content-Type: true
+          StatusCode: "200"
+      RequestParameters:
+        method.request.path.key: true
+      ResourceId:
+        Ref: ReactAppApikey2423C075
+      RestApiId:
+        Ref: ReactAppApi829DA0EA
+    Metadata:
+      aws:cdk:path: CdkStack/ReactAppApi/Default/{key+}/GET/Resource
+  ReactAppApiGET3D613A21:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration:
+        Credentials:
+          Fn::GetAtt:
+            - ApiGatewayS3Role9D5CA7F9
+            - Arn
+        IntegrationHttpMethod: GET
+        IntegrationResponses:
+          - ResponseParameters:
+              method.response.header.Content-Type: "'text/html'"
+            StatusCode: "200"
+        Type: AWS
+        Uri:
+          Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - ":apigateway:"
+              - Ref: AWS::Region
+              - :s3:path/
+              - Ref: WebappBucket620531E5
+              - /index.html
+      MethodResponses:
+        - ResponseParameters:
+            method.response.header.Content-Type: true
+          StatusCode: "200"
+      ResourceId:
+        Fn::GetAtt:
+          - ReactAppApi829DA0EA
+          - RootResourceId
+      RestApiId:
+        Ref: ReactAppApi829DA0EA
+    Metadata:
+      aws:cdk:path: CdkStack/ReactAppApi/Default/GET/Resource
+  ApiGatewayS3Role9D5CA7F9:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+        Version: "2012-10-17"
+    Metadata:
+      aws:cdk:path: CdkStack/ApiGatewayS3Role/Resource
+  ApiGatewayS3RoleDefaultPolicy6F560CAC:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - s3:GetBucket*
+              - s3:GetObject
+              - s3:GetObject*
+              - s3:List*
+              - s3:ListBucket
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt:
+                  - WebappBucket620531E5
+                  - Arn
+              - Fn::Join:
+                  - ""
+                  - - Fn::GetAtt:
+                        - WebappBucket620531E5
+                        - Arn
+                    - /*
+          - Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Effect: Allow
+            Resource: arn:aws:logs:*:*:*
+        Version: "2012-10-17"
+      PolicyName: ApiGatewayS3RoleDefaultPolicy6F560CAC
+      Roles:
+        - Ref: ApiGatewayS3Role9D5CA7F9
+    Metadata:
+      aws:cdk:path: CdkStack/ApiGatewayS3Role/DefaultPolicy/Resource
+  UserPool6BA7E5F2:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_phone_number
+            Priority: 1
+          - Name: verified_email
+            Priority: 2
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      AutoVerifiedAttributes:
+        - email
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+        ReplyToEmailAddress: noreply@verificationemail.com
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      SmsVerificationMessage: The verification code to your new account is {####}
+      UserPoolName: my-prefixmy-user-pool
+      UsernameAttributes:
+        - email
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_LINK
+        EmailMessageByLink: Verify your account by clicking on {##Verify Email##}
+        EmailSubjectByLink: Verify your new account
+        SmsMessage: The verification code to your new account is {####}
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Metadata:
+      aws:cdk:path: CdkStack/UserPool/Resource
+  
+  CognitoUserFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt CognitoUserFunctionRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import secrets
+          import string
+          import random
+          import cfnresponse
+
+          def generate_password():
+              # Define character sets
+              lowercase = string.ascii_lowercase
+              uppercase = string.ascii_uppercase
+              digits = string.digits
+              symbols = '!@#$%^&*()'
+              
+              # Ensure at least one of each required character type
+              password = [
+                  random.choice(uppercase),
+                  random.choice(lowercase),
+                  random.choice(digits),
+                  random.choice(symbols)
+              ]
+              
+              # Fill the rest randomly
+              all_chars = lowercase + uppercase + digits + symbols
+              password.extend(random.choice(all_chars) for _ in range(8))  # 8 more chars for 12 total
+              
+              # Shuffle the password
+              random.shuffle(password)
+              return ''.join(password)
+
+          def handler(event, context):
+              cognito = boto3.client('cognito-idp')
+              request_type = event['RequestType']
+              props = event['ResourceProperties']
+              physical_id = event.get('PhysicalResourceId', None)
+              
+              try:
+                  if request_type in ['Create', 'Update']:
+                      # Generate random username and password
+                      username = f"user-{secrets.token_hex(6)}@example.com"
+                      password = generate_password()
+                      
+                      # Create the user
+                      cognito.admin_create_user(
+                          UserPoolId=props['UserPoolId'],
+                          Username=username,
+                          TemporaryPassword=password,
+                          MessageAction='SUPPRESS'
+                      )
+                      
+                      # Set permanent password
+                      cognito.admin_set_user_password(
+                          UserPoolId=props['UserPoolId'],
+                          Username=username,
+                          Password=password,
+                          Permanent=True
+                      )
+                      
+                      response_data = {
+                          'Username': username,
+                          'Password': password
+                      }
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+                      
+                  elif request_type == 'Delete':
+                      if physical_id and physical_id != 'deleted':
+                          cognito.admin_delete_user(
+                              UserPoolId=props['UserPoolId'],
+                              Username=physical_id
+                          )
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {"message": f"Operation succeeded"})
+                      
+              except Exception as e:
+                  error_message = str(e)
+                  print(f"Error: {error_message}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {"message": f"Operation failed: {error_message}"})
+
+
+  CognitoUserFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CognitoUserAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminSetUserPassword
+                  - cognito-idp:AdminDeleteUser
+                Resource: !GetAtt UserPool6BA7E5F2.Arn
+
+  CognitoUser:
+    Type: Custom::CognitoUser
+    Properties:
+      ServiceToken: !GetAtt CognitoUserFunction.Arn
+      UserPoolId: !Ref UserPool6BA7E5F2
+
+  UserPoolCognitoDomainD6C7F9FA:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !GetAtt DomainString.Value
+      UserPoolId:
+        Ref: UserPool6BA7E5F2
+    Metadata:
+      aws:cdk:path: CdkStack/UserPool/CognitoDomain/Resource
+  UserPoolUserPoolClient40176907:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      CallbackURLs:
+        - Fn::Join:
+            - ""
+            - - https://
+              - Ref: ReactAppApi829DA0EA
+              - .execute-api.
+              - Ref: AWS::Region
+              - "."
+              - Ref: AWS::URLSuffix
+              - /
+              - Ref: ReactAppApiDeploymentStageprod854CC239
+        - Fn::Join:
+            - ""
+            - - https://
+              - Ref: ReactAppApi829DA0EA
+              - .execute-api.
+              - Ref: AWS::Region
+              - "."
+              - Ref: AWS::URLSuffix
+              - /
+              - Ref: ReactAppApiDeploymentStageprod854CC239
+              - /
+        - http://localhost:3000
+      ClientName: my-prefixUserPoolClient
+      SupportedIdentityProviders:
+        - COGNITO
+      UserPoolId:
+        Ref: UserPool6BA7E5F2
+    Metadata:
+      aws:cdk:path: CdkStack/UserPool/UserPoolClient/Resource
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId:
+            Ref: UserPoolUserPoolClient40176907
+          ProviderName:
+            Fn::GetAtt:
+              - UserPool6BA7E5F2
+              - ProviderName
+      IdentityPoolName: my-prefixmy-identity-pool
+    Metadata:
+      aws:cdk:path: CdkStack/IdentityPool
+  CognitoAuthenticatedRole5CA1BC89:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud:
+                  Ref: IdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: authenticated
+            Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+        Version: "2012-10-17"
+      RoleName: my-prefixcognito_authenticated_role-3
+    Metadata:
+      aws:cdk:path: CdkStack/CognitoAuthenticatedRole/Resource
+  CognitoAuthenticatedRoleDefaultPolicyA138AC36:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - bedrock:InvokeModel
+              - bedrock:InvokeModelWithResponseStream
+              - bedrock:ListFoundationModels
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - execute-api:Invoke
+              - execute-api:ManageConnections
+            Effect: Allow
+            Resource:
+              Fn::Join:
+                - ""
+                - - "arn:aws:execute-api:"
+                  - Ref: AWS::Region
+                  - ":"
+                  - Ref: AWS::AccountId
+                  - ":"
+                  - Ref: ReactAppApi829DA0EA
+                  - /*
+          - Action:
+              - lambda:InvokeFunctionUrl
+            Effect: Allow
+            Resource:
+              Fn::Join:
+                - ""
+                - - "arn:aws:lambda:"
+                  - Ref: AWS::Region
+                  - ":"
+                  - Ref: AWS::AccountId
+                  - ":function:"
+                  - Fn::ImportValue: MAOStack-LambdaFunctionName
+        Version: "2012-10-17"
+      PolicyName: CognitoAuthenticatedRoleDefaultPolicyA138AC36
+      Roles:
+        - Ref: CognitoAuthenticatedRole5CA1BC89
+    Metadata:
+      aws:cdk:path: CdkStack/CognitoAuthenticatedRole/DefaultPolicy/Resource
+  CognitoUnauthenticatedRoleCF6AD730:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud:
+                  Ref: IdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: unauthenticated
+            Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+        Version: "2012-10-17"
+      RoleName: my-prefixcognito_unauthenticated_role-3
+    Metadata:
+      aws:cdk:path: CdkStack/CognitoUnauthenticatedRole/Resource
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId:
+        Ref: IdentityPool
+      Roles:
+        authenticated:
+          Fn::GetAtt:
+            - CognitoAuthenticatedRole5CA1BC89
+            - Arn
+        unauthenticated:
+          Fn::GetAtt:
+            - CognitoUnauthenticatedRoleCF6AD730
+            - Arn
+    Metadata:
+      aws:cdk:path: CdkStack/IdentityPoolRoleAttachment
+  WebappBucketPolicy767D0EB9:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: WebappBucket620531E5
+      PolicyDocument:
+        Statement:
+          - Action: s3:*
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+            Effect: Deny
+            Principal:
+              AWS: "*"
+            Resource:
+              - Fn::GetAtt:
+                  - WebappBucket620531E5
+                  - Arn
+              - Fn::Join:
+                  - ""
+                  - - Fn::GetAtt:
+                        - WebappBucket620531E5
+                        - Arn
+                    - /*
+            Sid: EnforceHTTPS
+          - Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Effect: Allow
+            Principal:
+              AWS:
+                Fn::GetAtt:
+                  - ApiGatewayS3Role9D5CA7F9
+                  - Arn
+            Resource:
+              - Fn::GetAtt:
+                  - WebappBucket620531E5
+                  - Arn
+              - Fn::Join:
+                  - ""
+                  - - Fn::GetAtt:
+                        - WebappBucket620531E5
+                        - Arn
+                    - /*
+            Sid: AllowAPIGatewayAccess
+        Version: "2012-10-17"
+    Metadata:
+      aws:cdk:path: CdkStack/WebappBucketPolicy/Resource
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-s3-access-policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:GetBucket*'
+                Resource: 
+                  - !Sub 'arn:aws:s3:::${WebappBucket620531E5}'
+                  - !Sub 'arn:aws:s3:::${WebappBucket620531E5}/*'
+              - Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:ListBucket'
+                  - 's3:GetBucket*'
+                Resource: 
+                  - !Sub 'arn:aws:s3:::${WebappBucket620531E5}'
+                  - !Sub 'arn:aws:s3:::${WebappBucket620531E5}/*'
+
+  # Additional policy for Lambda
+  SourceCodeLambdaRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - s3:GetObject*
+              - s3:GetBucket*
+              - s3:List*
+              - s3:DeleteObject*
+              - s3:PutObject
+              - s3:Abort*
+            Effect: Allow
+            Resource: "*"
+        Version: "2012-10-17"
+      PolicyName: SourceCodeLambdaRolePolicy
+      Roles:
+        - Ref: LambdaExecutionRole
+  
+  # Lambda function to copy file
+  CopyFileFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-copy-file-function'
+      Handler: 'index.lambda_handler'
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: 'python3.12'
+      Timeout: 120
+      Code:
+        ZipFile: !Sub |
+          import boto3
+          import cfnresponse
+
+          def lambda_handler(event, context):
+              s3 = boto3.client('s3')
+
+              source_bucket = '${S3BucketName}'
+              source_prefix = '${S3BucketPrefix}frontend/'
+              try:
+                  dest_bucket = '${WebappBucket620531E5}'
+                  
+                  # List all objects in source prefix, including those in subdirectories
+                  paginator = s3.get_paginator('list_objects_v2')
+                  
+                  operation_parameters = {
+                    'Bucket': source_bucket,
+                    'Prefix': source_prefix,
+                    'Delimiter': ''  # Remove delimiter to get ALL objects recursively
+                  }
+        
+                  copied_count = 0
+                  directory_count = 0
+                  processed_directories = set()
+                  
+                  for page in paginator.paginate(**operation_parameters):
+                    if 'Contents' not in page:
+                        continue
+                        
+                    for obj in page['Contents']:
+                        source_key = obj['Key']
+                        
+                        # Skip if this is the root build folder itself
+                        if source_key == source_prefix:
+                            continue
+                            
+                        # Remove source_prefix from the key to get relative path
+                        relative_path = source_key[len(source_prefix):]
+                        dest_key = relative_path
+                        
+                        # Create any parent directories that don't exist
+                        parts = relative_path.split('/')
+                        current_path = ""
+                        for part in parts[:-1]:  # Skip the last part if it's a file
+                            current_path += part + "/"
+                            if current_path not in processed_directories:
+                                print(f"Creating directory: {current_path}")
+                                s3.put_object(
+                                    Bucket=dest_bucket,
+                                    Key=current_path,
+                                    Body=''
+                                )
+                                processed_directories.add(current_path)
+                                directory_count += 1
+                        
+                        # Copy the object if it's a file
+                        if not source_key.endswith('/'):
+                            copy_source = {
+                                'Bucket': source_bucket,
+                                'Key': source_key
+                            }
+                            print(f"Copying file: {source_key} to {dest_key}")
+                            s3.copy_object(
+                                CopySource=copy_source,
+                                Bucket=dest_bucket,
+                                Key=dest_key
+                            )
+                            copied_count += 1
+                        elif source_key.endswith('/') and source_key not in processed_directories:
+                            # Handle empty directories
+                            print(f"Creating directory: {dest_key}")
+                            s3.put_object(
+                                Bucket=dest_bucket,
+                                Key=dest_key,
+                                Body=''
+                            )
+                            processed_directories.add(dest_key)
+                            directory_count += 1
+                
+                  message = f"Successfully copied entire 'build' folder: {copied_count} files and {directory_count} directories"
+                  print(message)
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                      "message": message,
+                      "files_copied": copied_count,
+                      "directories_created": directory_count
+                  })
+              except Exception as e:
+                  error_message = str(e)
+                  print(f"Error: {error_message}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {"message": f"Copy operation failed: {error_message}"})
+
+  # Custom resource to trigger Lambda function
+  TriggerLambdaFunction:
+    Type: 'Custom::TriggerLambda'
+    Properties:
+      ServiceToken: !GetAtt CopyFileFunction.Arn
+
+  LambdaHandlerServiceRole8F7B4955:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  LambdaHandlerServiceRoleDefaultPolicy52DB1F25:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - bedrock:InvokeModel
+              - bedrock:InvokeModelWithResponseStream
+            Effect: Allow
+            Resource: "*"
+        Version: "2012-10-17"
+      PolicyName: LambdaHandlerServiceRoleDefaultPolicy52DB1F25
+      Roles:
+        - Ref: LambdaHandlerServiceRole8F7B4955
+  LambdaHandler212865DC:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import json
+          import os
+          from typing import List, Dict, Union, Optional
+          import boto3
+          import logging
+          from botocore.exceptions import ClientError
+          import re
+
+          # Set up logging
+          logger = logging.getLogger(__name__)
+          logging.basicConfig(level=logging.INFO)
+
+          # Configuration for product offerings
+          PRODUCT_OFFERINGS = {
+              "basic": {
+                  "product_offering_name": "Basic Internet Package",
+                  "description": "Reliable internet for everyday browsing and streaming",
+                  "initial_price": 49.99,
+                  "max_discount_percentage": 15,
+                  "speed": "100 Mbps",
+                  "features": [
+                      "Unlimited data",
+                      "Basic streaming quality",
+                      "WiFi router included",
+                      "24/7 customer support",
+                      "99.9% uptime guarantee",
+                  ],
+                  "best_for": "Small households, casual internet users",
+                  "installation": "Free professional installation",
+              },
+              "premium": {
+                  "product_offering_name": "Premium Internet Package",
+                  "description": "High-speed fiber internet with unlimited data",
+                  "initial_price": 89.99,
+                  "max_discount_percentage": 20,
+                  "speed": "500 Mbps",
+                  "features": [
+                      "Unlimited data",
+                      "4K streaming capability",
+                      "Advanced WiFi 6 router",
+                      "Priority customer support",
+                      "99.99% uptime guarantee",
+                      "Static IP address",
+                  ],
+                  "best_for": "Large households, remote workers, streamers",
+                  "installation": "Free professional installation with same-day setup",
+              },
+              "ultimate": {
+                  "product_offering_name": "Ultimate Internet Package",
+                  "description": "Lightning-fast internet for gaming and 4K streaming",
+                  "initial_price": 129.99,
+                  "max_discount_percentage": 10,
+                  "speed": "1 Gbps",
+                  "features": [
+                      "Unlimited data",
+                      "8K streaming capability",
+                      "Premium WiFi 6E router",
+                      "24/7 premium support with dedicated line",
+                      "99.999% uptime guarantee",
+                      "Multiple static IPs",
+                      "Network security suite included",
+                  ],
+                  "best_for": "Gaming enthusiasts, content creators, tech-savvy users",
+                  "installation": "Priority installation with network optimization",
+              },
+          }
+
+          def get_bedrock_client():
+              """Get Bedrock runtime client"""
+              return boto3.client("bedrock-runtime")
+
+          def extract_price_offer(message: str) -> Optional[float]:
+              """
+              Extract price offer from user message.
+              Handles formats like:
+              - $50, 50 dollars, 50.99
+              - Plain numbers: 40, 40.00
+              - Price mentions with common words: "how about 45" or "can you do 50"
+              """
+              message = message.lower().replace(" ", "")
+              
+              patterns = [
+                  r"\$(\d+\.?\d*)",
+                  r"(\d+\.?\d*)\$",
+                  r"(\d+\.?\d*)dollars",
+              ]
+
+              for pattern in patterns:
+                  match = re.search(pattern, message)
+                  if match:
+                      try:
+                          return float(match.group(1))
+                      except ValueError:
+                          return None
+
+              price_context_message = message.replace(",", "")
+              price_context_patterns = [
+                  r"(?:price|cost|pay|offer|do|dowith|exactly|just|only|how\s?about|around|about|for)?(\d+\.?\d*)",
+              ]
+
+              for pattern in price_context_patterns:
+                  match = re.search(pattern, price_context_message)
+                  if match:
+                      try:
+                          price = float(match.group(1))
+                          if (20 <= price <= 500):
+                              return price
+                      except ValueError:
+                          continue
+
+              return None
+
+          def analyze_intent_with_llm(messages: List[Dict], bedrock_client) -> Dict[str, Union[str, float]]:
+              """Use Bedrock's converse API to analyze the latest message and determine user intent"""
+              if not messages:
+                  return {"intent": "initial", "confidence": 1.0}
+
+              system_prompts = [
+                  {
+                      "text": """You are an AI that analyzes user messages in a price negotiation context. 
+                  Classify each message into exactly one category: 'accept', 'reject', 'negotiate', 'info_request', or 'other'.
+                  'info_request' should be used when the user asks for more details about the package or its features.
+                  'negotiate' should be used when the user makes a specific price offer or asks for a better price.
+                  Only respond with the category name."""
+                  }
+              ]
+
+              last_user_message = messages[-1]["content"][0]["text"]
+              conversation_messages = [
+                  {
+                      "role": "user",
+                      "content": [
+                          {
+                              "text": f"Analyze this negotiation message and respond with just one word - accept, reject, negotiate, info_request, or other: '{last_user_message}'"
+                          }
+                      ],
+                  }
+              ]
+
+              try:
+                  response = bedrock_client.converse(
+                      modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                      messages=conversation_messages,
+                      system=system_prompts,
+                  )
+
+                  token_usage = response["usage"]
+                  logger.info("Input tokens: %s", token_usage["inputTokens"])
+                  logger.info("Output tokens: %s", token_usage["outputTokens"])
+
+                  intent = response["output"]["message"]["content"][0]["text"].strip().lower()
+
+                  valid_intents = {"accept", "reject", "negotiate", "info_request", "other"}
+                  if intent not in valid_intents:
+                      intent = "other"
+
+                  price_offer = extract_price_offer(last_user_message)
+
+                  return {"intent": intent, "confidence": 1.0, "price_offer": price_offer}
+
+              except ClientError as err:
+                  logger.error("A client error occurred: %s", err.response["Error"]["Message"])
+                  return {"intent": "other", "confidence": 0.0, "price_offer": None}
+
+          def calculate_discount_percentage(original_price: float, offered_price: float) -> float:
+              """Calculate the discount percentage from original to offered price"""
+              return ((original_price - offered_price) / original_price) * 100
+
+          def get_package_info(product_id: str) -> str:
+              """Generate detailed information about a package"""
+              product = PRODUCT_OFFERINGS[product_id]
+
+              info = (
+                  f"Let me tell you more about the {product['product_offering_name']}:\n\n"
+                  f"• Speed: {product['speed']}\n"
+                  f"• Best for: {product['best_for']}\n"
+                  f"• Installation: {product['installation']}\n\n"
+                  "Key features:\n"
+              )
+
+              for feature in product["features"]:
+                  info += f"• {feature}\n"
+
+              info += f"\nThe regular price is ${product['initial_price']:.2f} per month. "
+
+              return info
+
+          def calculate_current_discount(messages: List[Dict], bedrock_client) -> float:
+              """Calculate the current discount based on negotiation history"""
+              negotiation_attempts = sum(
+                  1
+                  for msg in messages
+                  if msg["role"] == "user"
+                  and analyze_intent_with_llm([msg], bedrock_client)["intent"]
+                  in ["reject", "negotiate"]
+              )
+              return negotiation_attempts * 5
+
+          def format_price(price: float) -> str:
+              """Format price with two decimal places"""
+              return f"${price:.2f}"
+
+          def get_product_offerings():
+              """Return available product offerings"""
+              return {
+                  "products": [
+                      {
+                          "id": key,
+                          "name": value["product_offering_name"],
+                          "description": value["description"],
+                          "initial_price": value["initial_price"],
+                          "speed": value["speed"],
+                      }
+                      for key, value in PRODUCT_OFFERINGS.items()
+                  ]
+              }
+
+          def generate_response(messages: List[Dict], product_id: str, bedrock_client) -> Dict[str, Union[str, float]]:
+              """Generate appropriate response based on conversation history and selected product"""
+
+              if product_id not in PRODUCT_OFFERINGS:
+                  raise ValueError("Invalid product ID")
+
+              product = PRODUCT_OFFERINGS[product_id]
+              initial_price = product["initial_price"]
+              max_discount = product["max_discount_percentage"]
+
+              if not messages:
+                  response = {
+                      "message": f"I'd like to offer you our {product['product_offering_name']} for "
+                      f"{format_price(initial_price)} per month. "
+                      f"This includes {product['description']} with speeds up to {product['speed']}. "
+                      f"Would you like to sign up?",
+                      "current_price": initial_price,
+                  }
+                  return response
+
+              intent_analysis = analyze_intent_with_llm(messages, bedrock_client)
+              intent = intent_analysis["intent"]
+              price_offer = intent_analysis.get("price_offer")
+
+              current_discount = min(calculate_current_discount(messages, bedrock_client), max_discount)
+              current_price = initial_price * (1 - current_discount / 100)
+
+              if intent == "info_request":
+                  package_info = get_package_info(product_id)
+                  return {
+                      "message": f"{package_info}\n\nThe current offer stands at {format_price(current_price)} per month. "
+                      "Would you like to proceed with this offer?",
+                      "current_price": current_price,
+                  }
+
+              if intent == "accept":
+                  last_offered_price = current_price
+                  for msg in reversed(messages):
+                      if msg["role"] == "assistant":
+                          price_match = re.search(r"\$(\d+\.?\d*)", msg["content"][0]["text"])
+                          if price_match:
+                              last_offered_price = float(price_match.group(1))
+                              break
+
+                  return {
+                      "message": f"Excellent! I'm happy we could agree on {format_price(last_offered_price)} per month "
+                      f"for the {product['product_offering_name']}. I'll process your signup right away.",
+                      "current_price": last_offered_price,
+                  }
+
+              if intent == "negotiate" and price_offer is not None:
+                  offered_discount = calculate_discount_percentage(initial_price, price_offer)
+
+                  if offered_discount <= max_discount and price_offer <= current_price:
+                      return {
+                          "message": f"I can accept your offer of {format_price(price_offer)} per month "
+                          f"for the {product['product_offering_name']}. Would you like to proceed with the signup?",
+                          "current_price": price_offer,
+                      }
+                  elif offered_discount > max_discount:
+                      best_possible_price = initial_price * (1 - max_discount / 100)
+                      return {
+                          "message": f"I apologize, but I cannot go as low as {format_price(price_offer)}. "
+                          f"The best price I can offer you is {format_price(best_possible_price)} per month. "
+                          f"This includes all our {product['product_offering_name']} features. "
+                          "Would you like to accept this offer?",
+                          "current_price": best_possible_price,
+                      }
+
+              if intent in ["reject", "negotiate"]:
+                  next_discount = min(current_discount + 5, max_discount)
+                  next_price = initial_price * (1 - next_discount / 100)
+
+                  if current_discount >= max_discount:
+                      return {
+                          "message": f"I apologize, but {format_price(current_price)} is our best and final offer "
+                          f"for the {product['product_offering_name']}. "
+                          f"This is the maximum discount I can provide. Would you like to accept this price?",
+                          "current_price": current_price,
+                      }
+
+                  return {
+                      "message": f"I understand you're looking for a better deal. I can offer you "
+                      f"{format_price(next_price)} per month for the {product['product_offering_name']}. "
+                      f"Would this work for you?",
+                      "current_price": next_price,
+                  }
+
+              return {
+                  "message": f"The current offer for the {product['product_offering_name']} stands at "
+                  f"{format_price(current_price)}. Would you like to accept this offer?",
+                  "current_price": current_price,
+              }
+
+          def lambda_handler(event: Dict, context) -> Dict:
+              """AWS Lambda handler function"""
+              try:
+                  body = json.loads(event.get("body", "{}"))
+
+                  if body.get("action") == "get_products":
+                      return {
+                          "statusCode": 200,
+                          "headers": {
+                              "Content-Type": "application/json",
+                              "Access-Control-Allow-Origin": "*",
+                          },
+                          "body": json.dumps(get_product_offerings()),
+                      }
+
+                  messages = body.get("messages", [])
+                  product_id = body.get("product_id")
+
+                  if not product_id:
+                      raise ValueError("Product ID is required")
+
+                  bedrock_client = get_bedrock_client()
+                  response = generate_response(messages, product_id, bedrock_client)
+
+                  return {
+                      "statusCode": 200,
+                      "headers": {
+                          "Content-Type": "application/json",
+                          "Access-Control-Allow-Origin": "*",
+                      },
+                      "body": json.dumps(
+                          {
+                              "messages": messages
+                              + [
+                                  {
+                                      "role": "assistant",
+                                      "content": [{"text": response["message"]}],
+                                  }
+                              ],
+                              "current_price": response["current_price"],
+                          },
+                          default=str,
+                      ),
+                  }
+              except Exception as e:
+                  logger.error("Error: %s", str(e))
+                  return {
+                      "statusCode": 500,
+                      "headers": {
+                          "Content-Type": "application/json",
+                          "Access-Control-Allow-Origin": "*",
+                      },
+                      "body": json.dumps({"error": str(e)}),
+                  }
+      Handler: index.lambda_handler
+      Role:
+        Fn::GetAtt:
+          - LambdaHandlerServiceRole8F7B4955
+          - Arn
+      Runtime: python3.12
+      Timeout: 30
+    DependsOn:
+      - LambdaHandlerServiceRoleDefaultPolicy52DB1F25
+      - LambdaHandlerServiceRole8F7B4955
+  ApiGateway11E7F47B:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      ApiKeySourceType: HEADER
+      Description: API Gateway with Lambda integration
+      Name: My API Service
+  ApiGatewayDeploymentA26796E8188cadf99ac3242eb5231c794d1e0dfe:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      Description: API Gateway with Lambda integration
+      RestApiId:
+        Ref: ApiGateway11E7F47B
+    DependsOn:
+      - ApiGatewaynegotiateOPTIONSCD456E95
+      - ApiGatewaynegotiatePOST893D5934
+      - ApiGatewaynegotiate2EC85797
+      - ApiGatewayOPTIONSFAD6DF6F
+  ApiGatewayDeploymentStageprod1C6D5CD6:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId:
+        Ref: ApiGatewayDeploymentA26796E8188cadf99ac3242eb5231c794d1e0dfe
+      RestApiId:
+        Ref: ApiGateway11E7F47B
+      StageName: prod
+  ApiGatewayOPTIONSFAD6DF6F:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,PUT,POST,DELETE,PATCH,HEAD'"
+            StatusCode: "204"
+        RequestTemplates:
+          application/json: "{ statusCode: 200 }"
+        Type: MOCK
+      MethodResponses:
+        - ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+          StatusCode: "204"
+      ResourceId:
+        Fn::GetAtt:
+          - ApiGateway11E7F47B
+          - RootResourceId
+      RestApiId:
+        Ref: ApiGateway11E7F47B
+  ApiGatewaynegotiate2EC85797:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Fn::GetAtt:
+          - ApiGateway11E7F47B
+          - RootResourceId
+      PathPart: negotiate
+      RestApiId:
+        Ref: ApiGateway11E7F47B
+  ApiGatewaynegotiateOPTIONSCD456E95:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,PUT,POST,DELETE,PATCH,HEAD'"
+            StatusCode: "204"
+        RequestTemplates:
+          application/json: "{ statusCode: 200 }"
+        Type: MOCK
+      MethodResponses:
+        - ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+          StatusCode: "204"
+      ResourceId:
+        Ref: ApiGatewaynegotiate2EC85797
+      RestApiId:
+        Ref: ApiGateway11E7F47B
+  ApiGatewaynegotiatePOSTApiPermissionCdkNegotiationApiStackApiGatewayAC691E58POSTnegotiateFF651BDD:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Fn::GetAtt:
+          - LambdaHandler212865DC
+          - Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Join:
+          - ""
+          - - "arn:"
+            - Ref: AWS::Partition
+            - ":execute-api:"
+            - Ref: AWS::Region
+            - ":"
+            - Ref: AWS::AccountId
+            - ":"
+            - Ref: ApiGateway11E7F47B
+            - /
+            - Ref: ApiGatewayDeploymentStageprod1C6D5CD6
+            - /POST/negotiate
+  ApiGatewaynegotiatePOSTApiPermissionTestCdkNegotiationApiStackApiGatewayAC691E58POSTnegotiate20A8697D:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Fn::GetAtt:
+          - LambdaHandler212865DC
+          - Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Join:
+          - ""
+          - - "arn:"
+            - Ref: AWS::Partition
+            - ":execute-api:"
+            - Ref: AWS::Region
+            - ":"
+            - Ref: AWS::AccountId
+            - ":"
+            - Ref: ApiGateway11E7F47B
+            - /test-invoke-stage/POST/negotiate
+  ApiGatewaynegotiatePOST893D5934:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: true
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri:
+          Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - ":apigateway:"
+              - Ref: AWS::Region
+              - :lambda:path/2015-03-31/functions/
+              - Fn::GetAtt:
+                  - LambdaHandler212865DC
+                  - Arn
+              - /invocations
+      ResourceId:
+        Ref: ApiGatewaynegotiate2EC85797
+      RestApiId:
+        Ref: ApiGateway11E7F47B
+  ApiGatewayApiKeyC7E404FA:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Description: API Key for accessing the API
+      Enabled: true
+      Name: MyApiKey
+      StageKeys:
+        - RestApiId:
+            Ref: ApiGateway11E7F47B
+          StageName:
+            Ref: ApiGatewayDeploymentStageprod1C6D5CD6
+  ApiGatewayUsagePlan53F18B49:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      ApiStages:
+        - ApiId:
+            Ref: ApiGateway11E7F47B
+          Stage:
+            Ref: ApiGatewayDeploymentStageprod1C6D5CD6
+          Throttle: {}
+      Description: Standard usage plan
+      UsagePlanName: Standard
+  ApiGatewayUsagePlanUsagePlanKeyResourceCdkNegotiationApiStackApiGatewayApiKeyBBB2F84879B6F21B:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId:
+        Ref: ApiGatewayApiKeyC7E404FA
+      KeyType: API_KEY
+      UsagePlanId:
+        Ref: ApiGatewayUsagePlan53F18B49
+Outputs:
+  ReactAppApiEndpointE80AD34C:
+    Value:
+      Fn::Join:
+        - ""
+        - - https://
+          - Ref: ReactAppApi829DA0EA
+          - .execute-api.
+          - Ref: AWS::Region
+          - "."
+          - Ref: AWS::URLSuffix
+          - /
+          - Ref: ReactAppApiDeploymentStageprod854CC239
+          - /
+  ApiGatewayUrl:
+    Description: API Gateway URL
+    Value:
+      Fn::Join:
+        - ""
+        - - https://
+          - Ref: ReactAppApi829DA0EA
+          - .execute-api.
+          - Ref: AWS::Region
+          - "."
+          - Ref: AWS::URLSuffix
+          - /
+          - Ref: ReactAppApiDeploymentStageprod854CC239
+          - /
+  S3BucketName:
+    Description: S3 Bucket Name
+    Value:
+      Ref: WebappBucket620531E5
+  ApiGatewayS3RoleArn:
+    Description: ARN of the API Gateway S3 role
+    Value:
+      Fn::GetAtt:
+        - ApiGatewayS3Role9D5CA7F9
+        - Arn
+  CognitoAuthenticatedRoleArn:
+    Description: ARN of the Cognito Authenticated role
+    Value:
+      Fn::GetAtt:
+        - CognitoAuthenticatedRole5CA1BC89
+        - Arn
+  CognitoUnauthenticatedRoleArn:
+    Description: ARN of the Cognito Unauthenticated role
+    Value:
+      Fn::GetAtt:
+        - CognitoUnauthenticatedRoleCF6AD730
+        - Arn
+  UiUsername:
+      Description: Created Cognito Username
+      Value: !GetAtt CognitoUser.Username
+  UiPassword:
+      Description: Created Cognito Password
+      Value: !GetAtt CognitoUser.Password
+  ApiGatewayEndpoint5AA8EC3A:
+    Value:
+      Fn::Join:
+        - ""
+        - - https://
+          - Ref: ApiGateway11E7F47B
+          - .execute-api.
+          - Ref: AWS::Region
+          - "."
+          - Ref: AWS::URLSuffix
+          - /
+          - Ref: ApiGatewayDeploymentStageprod1C6D5CD6
+          - /
+  ApiUrl:
+    Description: API Gateway URL
+    Value:
+      Fn::Join:
+        - ""
+        - - https://
+          - Ref: ApiGateway11E7F47B
+          - .execute-api.
+          - Ref: AWS::Region
+          - "."
+          - Ref: AWS::URLSuffix
+          - /
+          - Ref: ApiGatewayDeploymentStageprod1C6D5CD6
+          - /negotiate
+  ApiKeyId:
+    Description: API Key ID
+    Value:
+      Ref: ApiGatewayApiKeyC7E404FA

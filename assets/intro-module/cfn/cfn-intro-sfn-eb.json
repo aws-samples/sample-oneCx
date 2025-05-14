@@ -1,0 +1,173 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "CloudFormation template for DataloaderStateMachine",
+    "Parameters": {
+        "DataLoaderLambdaArn": {
+            "Type": "String",
+            "Description": "dataloader lambda function arn"
+        },
+        "DbTriggerLambdaArn": {
+            "Type": "String",
+            "Description": "db trigger lambda function arn"
+        }
+    },
+    "Resources": {
+        "DataloaderStateMachine": {
+          "Type": "AWS::StepFunctions::StateMachine",
+          "Properties": {
+            "StateMachineName": "DataloaderStateMachine",
+            "DefinitionString": {
+              "Fn::Sub": [
+                "{\"Comment\":\"Step Function for data loading\",\"StartAt\":\"WaitForDatabase\",\"States\":{\"WaitForDatabase\":{\"Type\":\"Wait\",\"Seconds\":60,\"Next\":\"DataloaderTask\"},\"DataloaderTask\":{\"Type\":\"Task\",\"Resource\":\"${DataLoaderLambdaArn}\",\"Next\":\"DbTriggerTask\"},\"DbTriggerTask\":{\"Type\":\"Task\",\"Resource\":\"${DbTriggerLambdaArn}\",\"End\":true}}}",
+                {
+                  "DataLoaderLambdaArn": {"Ref": "DataLoaderLambdaArn"},
+                  "DbTriggerLambdaArn": {"Ref": "DbTriggerLambdaArn"}
+                }
+              ]
+            },
+            "RoleArn": {
+              "Fn::GetAtt": [
+                "StepFunctionExecutionRole",
+                "Arn"
+              ]
+            }
+          }
+        },
+        "StepFunctionExecutionRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": "states.amazonaws.com"
+                  },
+                  "Action": "sts:AssumeRole"
+                }
+              ]
+            },
+            "Policies": [
+              {
+                "PolicyName": "StepFunctionBasicExecution",
+                "PolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "lambda:InvokeFunction",
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:PutLogEvents",
+                        "logs:CreateLogDelivery",
+                        "logs:GetLogDelivery",
+                        "logs:UpdateLogDelivery",
+                        "logs:DeleteLogDelivery",
+                        "logs:ListLogDeliveries",
+                        "logs:PutResourcePolicy",
+                        "logs:DescribeResourcePolicies",
+                        "logs:DescribeLogGroups"
+                      ],
+                      "Resource": "*"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "EventBridgeRule": {
+            "Type": "AWS::Events::Rule",
+            "Properties": {
+              "Description": "EventBridge rule for CloudFormation stack status",
+              "EventPattern": {
+                "detail": {
+                    "status-details":{
+                        "status": ["CREATE_COMPLETE"]
+                    }
+                },
+                "detail-type": ["CloudFormation Stack Status Change"],
+                "source": ["aws.cloudformation"]
+              },
+              "State": "ENABLED",
+              "Targets": [
+                {
+                  "Arn": {"Fn::GetAtt": ["DataloaderStateMachine", "Arn"]},
+                  "Id": "TriggerStepFunctionOnCloudFormationStatusChange",
+                  "RoleArn": {"Fn::GetAtt": ["EventBridgeRole", "Arn"]}
+                },
+                {
+                  "Arn": { "Fn::GetAtt": ["EventBridgeLogGroup", "Arn"] },
+                  "Id": "EventBridgeLogTarget"
+                }
+              ]
+            }
+          },
+
+        "EventBridgeRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+              "AssumeRolePolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": ["events.amazonaws.com"]
+                    },
+                    "Action": ["sts:AssumeRole"]
+                  }
+                ]
+              },
+              "Policies": [
+                {
+                  "PolicyName": "EventBridgeStepFunctionPolicy",
+                  "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "states:StartExecution"
+                        ],
+                        "Resource": {"Fn::GetAtt": ["DataloaderStateMachine", "Arn"]}
+                      },
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "logs:CreateLogStream",
+                          "logs:PutLogEvents"
+                        ],
+                        "Resource": { "Fn::GetAtt": ["EventBridgeLogGroup", "Arn"] }
+                      }
+                    ]
+                  }
+                }
+              ]
+          }
+        },
+        "EventBridgeLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+              "LogGroupName": "/aws/events/CloudFormationStatusChangeRule",
+              "RetentionInDays": 14
+            }
+          }
+    },
+    "Outputs": {
+        "StateMachineArn": {
+            "Description": "ARN of the created Step Function State Machine",
+            "Value": {
+              "Ref": "DataloaderStateMachine"
+            },
+            "Export": {
+              "Name":{
+                "Fn::Sub": "${AWS::StackName}-StateMachineArn"
+              } 
+            }
+        }
+    }
+}
+  

@@ -1,0 +1,222 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Database resources for the application",
+  "Parameters": {
+    "VpcId": {
+      "Type": "AWS::EC2::VPC::Id",
+      "Description": "VPC ID"
+    },
+    "VpcCidr": {
+      "Type": "String",
+      "Description": "CIDR block for the VPC"
+    },
+    "PrivateSubnet1Id": {
+      "Type": "AWS::EC2::Subnet::Id",
+      "Description": "Private Subnet 1 ID"
+    },
+    "PrivateSubnet2Id": {
+      "Type": "AWS::EC2::Subnet::Id",
+      "Description": "Private Subnet 2 ID"
+    }
+  },
+  "Resources": {
+    "Tlc302DatabaseSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Description": "Database credentials",
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{\"username\": \"tlc302user\"}",
+          "GenerateStringKey": "password",
+          "PasswordLength": 30,
+          "ExcludeCharacters": "\"@/\\"
+        }
+      }
+    },
+    "Tlc302Database": {
+      "Type": "AWS::RDS::DBCluster",
+      "Properties": {
+        "Engine": "aurora-postgresql",
+        "EngineVersion": "16.3",
+        "DatabaseName": "postgres",
+        "MasterUsername": {
+          "Fn::Sub": "{{resolve:secretsmanager:${Tlc302DatabaseSecret}:SecretString:username}}"
+        },
+        "MasterUserPassword": {
+          "Fn::Sub": "{{resolve:secretsmanager:${Tlc302DatabaseSecret}:SecretString:password}}"
+        },
+        "DBSubnetGroupName": {
+          "Ref": "Tlc302DBSubnetGroup"
+        },
+        "Port": 5432,
+        "VpcSecurityGroupIds": [
+          {
+            "Ref": "Tlc302DBSecurityGroup"
+          }
+        ],
+        "EnableHttpEndpoint": true,
+        "DeletionProtection": false,
+        "AssociatedRoles": [
+          {
+            "RoleArn": {"Fn::GetAtt": ["Tlc302DBRole", "Arn"]},
+            "FeatureName": "Lambda"
+          }
+        ]
+      }
+    },
+    "Tlc302DBWriterInstance": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBClusterIdentifier": {
+          "Ref": "Tlc302Database"
+        },
+        "DBInstanceClass": "db.r6g.large",
+        "Engine": "aurora-postgresql",
+        "PubliclyAccessible": false
+      }
+    },
+    "Tlc302DBReaderInstance": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBClusterIdentifier": {
+          "Ref": "Tlc302Database"
+        },
+        "DBInstanceClass": "db.r6g.large",
+        "Engine": "aurora-postgresql",
+        "PubliclyAccessible": false
+      }
+    },
+    "Tlc302DBSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupDescription": "Subnet group for tlc302 DB cluster",
+        "SubnetIds": [
+          {"Ref": "PrivateSubnet1Id"},
+          {"Ref": "PrivateSubnet2Id"}
+        ]
+      }
+    },
+    "Tlc302DBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security Group for RDS Cluster",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 5432,
+            "ToPort": 5432,
+            "CidrIp": {"Ref": "VpcCidr"}
+          }
+        ],
+        "VpcId": {"Ref": "VpcId"}
+      }
+    },
+    "Tlc302DatabaseSecretAttachment": {
+      "Type": "AWS::SecretsManager::SecretTargetAttachment",
+      "Properties": {
+        "SecretId": {
+          "Ref": "Tlc302DatabaseSecret"
+        },
+        "TargetId": {
+          "Ref": "Tlc302Database"
+        },
+        "TargetType": "AWS::RDS::DBCluster"
+      }
+    },
+    "Tlc302DBRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "rds.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "Tlc302DBRolePolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents",
+                    "logs:DescribeLogStreams"
+                  ],
+                  "Resource": [
+                    "arn:aws:logs:*:*:log-group:/aws/rds/*",
+                    "arn:aws:logs:*:*:log-group:/aws/rds/*:log-stream:*"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:InvokeFunction",
+                    "lambda:GetFunction",
+                    "lambda:ListFunctions",
+                    "lambda:GetFunctionConfiguration"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "secretsmanager:GetSecretValue",
+                    "secretsmanager:DescribeSecret",
+                    "secretsmanager:ListSecrets",
+                    "secretsmanager:GetResourcePolicy"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ec2:CreateNetworkInterface",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:DescribeNetworkInterfaces",
+                    "ec2:DetachNetworkInterface",
+                    "ec2:ModifyNetworkInterfaceAttribute",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeVpcs"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "DatabaseSecretArn": {
+      "Description": "ARN of the Database Secret",
+      "Value": {"Ref": "Tlc302DatabaseSecret"},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-DatabaseSecretArn"}}
+    },
+    "DatabaseClusterArn": {
+      "Description": "ARN of the Database Cluster",
+      "Value": {"Ref": "Tlc302Database"},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-DatabaseClusterArn"}}
+    },
+    "DatabaseSecurityGroupId": {
+      "Description": "ID of the Database Security Group",
+      "Value": {"Ref": "Tlc302DBSecurityGroup"},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-DatabaseSecurityGroupId"}}
+    },
+    "DatabaseRoleArn": {
+      "Description": "ARN of the Database Role",
+      "Value": {"Fn::GetAtt": ["Tlc302DBRole", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-DatabaseRoleArn"}}
+    }
+  }
+}

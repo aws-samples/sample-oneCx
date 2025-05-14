@@ -1,0 +1,238 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Main CloudFormation template for the application",
+  "Parameters": {
+    "S3BucketName": {
+      "Type": "String",
+      "Description": "Name of the S3 bucket containing the nested templates"
+    }, 
+    "S3BucketPrefix": {
+      "Type": "String",
+      "Description": "Name of the S3 bucket Prefix containing the nested templates"
+    },
+    "VpcCidr": {
+      "Type": "String",
+      "Description": "CIDR block for the VPC",
+      "Default": "10.0.0.0/16"
+    }
+  },
+  "Mappings": {
+    "StackConfig": {
+      "BaseStack": {"TemplateName": "cfn-base.json"},
+      "DatabaseStack": {"TemplateName": "cfn-database.json"},
+      "LambdaApiStack": {"TemplateName": "cfn-lambda-api.json"},
+      "SfnEventbridgeStack": {"TemplateName": "cfn-sfn-eb.json"},
+      "VPC": {"CIDR": "10.0.0.0/16"}
+    }
+  },
+  "Resources": {
+    "BaseStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Sub": "https://${S3BucketName}.s3.amazonaws.com/${S3BucketPrefix}intro-module/cfn/cfn-intro-base.json"  
+        },
+        "Parameters": {
+          "VpcCidr": {"Ref": "VpcCidr"},
+          "S3BucketName": { "Ref": "S3BucketName"},
+          "S3BucketPrefix": { "Ref": "S3BucketPrefix"}
+        },
+        "TimeoutInMinutes": 30
+      }
+    },
+    "DatabaseStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "DependsOn": "BaseStack",
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Sub": "https://${S3BucketName}.s3.amazonaws.com/${S3BucketPrefix}intro-module/cfn/cfn-intro-database.json" 
+        },
+        "Parameters": {
+          "VpcId": {"Fn::GetAtt": ["BaseStack", "Outputs.VpcId"]},
+          "VpcCidr": {"Fn::GetAtt": ["BaseStack", "Outputs.VpcCidrBlock"]},
+          "PrivateSubnet1Id": {"Fn::GetAtt": ["BaseStack", "Outputs.PrivateSubnet1Id"]},
+          "PrivateSubnet2Id": {"Fn::GetAtt": ["BaseStack", "Outputs.PrivateSubnet2Id"]}
+        },
+        "TimeoutInMinutes": 30
+      }
+    },
+    "RDSDataAPISecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security Group for RDS Data API VPC Endpoint",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 443,
+            "ToPort": 443,
+            "CidrIp": {"Fn::GetAtt": ["BaseStack", "Outputs.VpcCidrBlock"]}
+          }
+        ],
+        "VpcId": {"Fn::GetAtt": ["BaseStack", "Outputs.VpcId"]}
+      }
+    },
+    "RDSDataAPIEndpoint": {
+      "Type": "AWS::EC2::VPCEndpoint",
+      "Properties": {
+        "ServiceName": {"Fn::Sub": "com.amazonaws.${AWS::Region}.rds-data"},
+        "VpcId": {"Fn::GetAtt": ["BaseStack", "Outputs.VpcId"]},
+        "VpcEndpointType": "Interface",
+        "PrivateDnsEnabled": true,
+        "SecurityGroupIds": [{"Ref": "RDSDataAPISecurityGroup"}],
+        "SubnetIds": [
+          {"Fn::GetAtt": ["BaseStack", "Outputs.PrivateSubnet1Id"]},
+          {"Fn::GetAtt": ["BaseStack", "Outputs.PrivateSubnet2Id"]}
+        ]
+      }
+    },
+    "LambdaApiStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "DependsOn": ["BaseStack", "DatabaseStack"],
+      "Properties": {
+        "TemplateURL": {
+          "Fn::Sub": "https://${S3BucketName}.s3.amazonaws.com/${S3BucketPrefix}intro-module/cfn/cfn-intro-lambda-api.json"
+          },
+        "Parameters": {
+          "VpcId": {"Fn::GetAtt": ["BaseStack", "Outputs.VpcId"]},
+          "VpcCidr": {"Fn::GetAtt": ["BaseStack", "Outputs.VpcCidrBlock"]},
+          "PrivateSubnet1Id": {"Fn::GetAtt": ["BaseStack", "Outputs.PrivateSubnet1Id"]},
+          "PrivateSubnet2Id": {"Fn::GetAtt": ["BaseStack", "Outputs.PrivateSubnet2Id"]},
+          "DatabaseSecretArn": {"Fn::GetAtt": ["DatabaseStack", "Outputs.DatabaseSecretArn"]},
+          "Psycopg2LayerArn": {"Fn::GetAtt": ["BaseStack", "Outputs.Psycopg2LayerArn"]},
+          "DatabaseClusterArn": {"Fn::GetAtt": ["DatabaseStack", "Outputs.DatabaseClusterArn"]},
+          "S3BucketName": { "Ref": "S3BucketName"},
+          "S3BucketPrefix": { "Ref": "S3BucketPrefix"}
+        },
+        "TimeoutInMinutes": 30
+      }
+    }
+    
+  },
+  "Outputs": {
+    "RDSDataAPIEndpointId": {
+      "Description": "The ID of the RDS Data API VPC Endpoint",
+      "Value": {"Ref": "RDSDataAPIEndpoint"}
+    },
+    "DatabaseClusterArn": {
+      "Description": "The ARN of the Aurora Serverless Database Cluster",
+      "Value": {"Fn::GetAtt": ["DatabaseStack", "Outputs.DatabaseClusterArn"]}
+    },
+    "VpcId": {
+      "Description": "The ID of the VPC",
+      "Value": {"Fn::GetAtt": ["BaseStack", "Outputs.VpcId"]}
+    },
+    "APIKeySecret": {
+      "Description": "The secret key arn of the APIs",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.APIKeySecretARN"]},
+      "Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-APIKeySecret"
+				}
+			}
+    },
+    "GetCustomerJourneyAPIUrl": {
+      "Description": "The URL of the GetCustomerJourney API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.GetCustomerJourneyAPIUrl"]},
+      "Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyAPIUrl"
+				}
+			}
+    },
+    "GetCustomerProfileAPIUrl": {
+      "Description": "The URL of the GetCustomerProfile API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.GetCustomerProfileAPIUrl"]},
+      "Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerProfileAPIUrl"
+				}
+			}
+    },
+    "GetCustomerProfileAPIKey": {
+      "Description": "The URL of the GetCustomerProfile API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.GetCustomerProfileAPIKey"]},
+      "Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerProfileAPIKey"
+				}
+			}
+    },
+    "GetCustomerJourneyToBedrockAPIUrl": {
+      "Description": "The URL of the GetCustomerJourneyToBedrock API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.GetCustomerJourneyToBedrockAPIUrl"]},
+      "Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyToBedrockAPIUrl"
+				}
+			}
+    },
+    "GetCustomerJourneyChatResponseAPIUrl": {
+      "Description": "The URL of the GetCustomerJourneyChatResponse API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.GetCustomerJourneyChatResponseAPIUrl"]},
+      "Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyChatResponseAPIUrl"
+				}
+			}
+    },
+    "GetEventTypeAPIUrl": {
+      "Description": "The URL of the GetEventType API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.GetEventTypeAPIUrl"]}
+    },
+    "PutCustomerJourneyAPIUrl": {
+      "Description": "The URL of the PutCustomerJourney API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.PutCustomerJourneyAPIUrl"]}
+    },
+    "PutEventTypeAPIUrl": {
+      "Description": "The URL of the PutEventType API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.PutEventTypeAPIUrl"]}
+    },
+    "GetCustomerJourneyAPIKey": {
+      "Description": "API Key for the GetCustomerJourney API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.GetCustomerJourneyAPIKey"]},
+      "Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyAPIKey"
+				}
+			}
+    },
+    "GetCustomerJourneyToBedrockAPIKey": {
+      "Description": "API Key for the GetCustomerJourneyToBedrock API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.GetCustomerJourneyToBedrockAPIKey"]},
+      "Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyToBedrockAPIKey"
+				}
+			}
+    },
+    "GetCustomerJourneyChatResponseAPIKey": {
+      "Description": "API Key for the GetCustomerJourneyChatResponse API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.GetCustomerJourneyChatResponseAPIKey"]},
+      "Export": {
+				"Name": {
+					"Fn::Sub": "${AWS::StackName}-GetCustomerJourneyChatResponseAPIKey"
+				}
+			}
+    },
+    "GetEventTypeAPIKey": {
+      "Description": "API Key for the GetEventType API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.GetEventTypeAPIKey"]}
+    },
+    "PutCustomerJourneyAPIKey": {
+      "Description": "API Key for the PutCustomerJourney API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.PutCustomerJourneyAPIKey"]}
+    },
+    "PutEventTypeAPIKey": {
+      "Description": "API Key for the PutEventType API",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.PutEventTypeAPIKey"]}
+    },
+    "DataLoaderLambdaArn": {
+      "Description": "ARN of the DataLoader Lambda function",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.DataLoaderLambdaArn"]}
+    },
+    "DbTriggerLambdaArn": {
+      "Description": "ARN of the DataLoader Lambda function",
+      "Value": {"Fn::GetAtt": ["LambdaApiStack", "Outputs.DbTriggerLambdaArn"]}
+    }
+  }
+}

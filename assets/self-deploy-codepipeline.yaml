@@ -1,0 +1,268 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "CloudFormation template to create CodePipeline with 5 sequential stack deployments",
+    "Parameters": {
+        "S3BucketName": {
+            "Type": "String",
+            "Description": "Name of the S3 bucket containing CloudFormation templates"
+        },
+        "S3BucketPrefix": {
+            "Type": "String",
+            "Description": "Prefix path in the S3 bucket where templates are stored",
+            "Default": ""
+        }
+    },
+    "Resources": {
+        "ArtifactBucket": {
+            "Type": "AWS::S3::Bucket",
+            "DeletionPolicy": "Retain"
+        },
+        "CodePipelineServiceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "codepipeline.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                },
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/AdministratorAccess"
+                ]
+            }
+        },
+        "CloudFormationRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "cloudformation.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                },
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/AdministratorAccess"
+                ]
+            }
+        },        
+        "Pipeline": {
+            "Type": "AWS::CodePipeline::Pipeline",
+            "Properties": {
+                "RoleArn": {
+                    "Fn::GetAtt": ["CodePipelineServiceRole", "Arn"]
+                },
+                "ArtifactStore": {
+                    "Type": "S3",
+                    "Location": {
+                        "Ref": "ArtifactBucket"
+                    }
+                },
+                "Stages": [
+                    {
+                        "Name": "Source",
+                        "Actions": [
+                            {
+                                "Name": "Source",
+                                "ActionTypeId": {
+                                    "Category": "Source",
+                                    "Owner": "AWS",
+                                    "Provider": "S3",
+                                    "Version": "1"
+                                },
+                                "Configuration": {
+                                    "S3Bucket": {
+                                        "Ref": "S3BucketName"
+                                    },
+                                    "S3ObjectKey": "templates.zip"
+                                },
+                                "OutputArtifacts": [
+                                    {
+                                        "Name": "SourceOutput"
+                                    }
+                                ],
+                                "RunOrder": 1
+                            }
+                        ]
+                    },
+                    {
+                        "Name": "Stack1-Root",
+                        "Actions": [
+                            {
+                                "Name": "CreateStack1",
+                                "ActionTypeId": {
+                                    "Category": "Deploy",
+                                    "Owner": "AWS",
+                                    "Provider": "CloudFormation",
+                                    "Version": "1"
+                                },
+                                "Configuration": {
+                                    "ActionMode": "CREATE_UPDATE",
+                                    "StackName": "rootstack",
+                                    "TemplatePath": "SourceOutput::root.json",
+                                    "Capabilities": "CAPABILITY_IAM,CAPABILITY_NAMED_IAM",
+                                    "ParameterOverrides": { "Fn::Sub": "{\"S3BucketName\":\"${S3BucketName}\",\"S3BucketPrefix\":\"${S3BucketPrefix}\"}"},
+                                    "RoleArn": {
+                                        "Fn::GetAtt": [
+                                            "CloudFormationRole",
+                                            "Arn"
+                                        ]
+                                    }
+                                },
+                                "InputArtifacts": [
+                                    {
+                                        "Name": "SourceOutput"
+                                    }
+                                ],
+                                "RunOrder": 1
+                            }
+                        ]
+                    },
+                    {
+                        "Name": "Stack2-Main",
+                        "Actions": [
+                            {
+                                "Name": "CreateStack2",
+                                "ActionTypeId": {
+                                    "Category": "Deploy",
+                                    "Owner": "AWS",
+                                    "Provider": "CloudFormation",
+                                    "Version": "1"
+                                },
+                                "Configuration": {
+                                    "ActionMode": "CREATE_UPDATE",
+                                    "StackName": "cfn-intro-main",
+                                    "TemplatePath": "SourceOutput::cfn-intro-main.json",
+                                    "Capabilities": "CAPABILITY_IAM,CAPABILITY_NAMED_IAM",
+                                    "ParameterOverrides": { "Fn::Sub": "{\"S3BucketName\":\"${S3BucketName}\",\"S3BucketPrefix\":\"${S3BucketPrefix}\"}"},
+                                    "RoleArn": {
+                                        "Fn::GetAtt": [
+                                            "CloudFormationRole",
+                                            "Arn"
+                                        ]
+                                    }
+                                },
+                                "InputArtifacts": [
+                                    {
+                                        "Name": "SourceOutput"
+                                    }
+                                ],
+                                "RunOrder": 1
+                            }
+                        ]
+                    },
+                    {
+                        "Name": "Stack3-Module3",
+                        "Actions": [
+                            {
+                                "Name": "CreateStack3",
+                                "ActionTypeId": {
+                                    "Category": "Deploy",
+                                    "Owner": "AWS",
+                                    "Provider": "CloudFormation",
+                                    "Version": "1"
+                                },
+                                "Configuration": {
+                                    "ActionMode": "CREATE_UPDATE",
+                                    "StackName": "module3stack",
+                                    "TemplatePath": "SourceOutput::module3cfnv6.yaml",
+                                    "Capabilities": "CAPABILITY_IAM,CAPABILITY_NAMED_IAM",
+                                    "ParameterOverrides": { "Fn::Sub": "{\"S3BucketName\":\"${S3BucketName}\",\"S3BucketPrefix\":\"${S3BucketPrefix}\"}"},
+                                    "RoleArn": {
+                                        "Fn::GetAtt": [
+                                            "CloudFormationRole",
+                                            "Arn"
+                                        ]
+                                    }
+                                },
+                                "InputArtifacts": [
+                                    {
+                                        "Name": "SourceOutput"
+                                    }
+                                ],
+                                "RunOrder": 1
+                            }
+                        ]
+                    },
+                    {
+                        "Name": "Stack4-MainInfra",
+                        "Actions": [
+                            {
+                                "Name": "CreateStack4",
+                                "ActionTypeId": {
+                                    "Category": "Deploy",
+                                    "Owner": "AWS",
+                                    "Provider": "CloudFormation",
+                                    "Version": "1"
+                                },
+                                "Configuration": {
+                                    "ActionMode": "CREATE_UPDATE",
+                                    "StackName": "maininfrastack",
+                                    "TemplatePath": "SourceOutput::maoinfra.yaml",
+                                    "Capabilities": "CAPABILITY_IAM,CAPABILITY_NAMED_IAM",
+                                    "ParameterOverrides": { "Fn::Sub": "{\"S3BucketName\":\"${S3BucketName}\",\"S3BucketPrefix\":\"${S3BucketPrefix}\"}"},
+                                    "RoleArn": {
+                                        "Fn::GetAtt": [
+                                            "CloudFormationRole",
+                                            "Arn"
+                                        ]
+                                    }
+                                },
+                                "InputArtifacts": [
+                                    {
+                                        "Name": "SourceOutput"
+                                    }
+                                ],
+                                "RunOrder": 1
+                            }
+                        ]
+                    },
+                    {
+                        "Name": "Stack5-Frontend",
+                        "Actions": [
+                            {
+                                "Name": "CreateStack5",
+                                "ActionTypeId": {
+                                    "Category": "Deploy",
+                                    "Owner": "AWS",
+                                    "Provider": "CloudFormation",
+                                    "Version": "1"
+                                },
+                                "Configuration": {
+                                    "ActionMode": "CREATE_UPDATE",
+                                    "StackName": "frontendstack",
+                                    "TemplatePath": "SourceOutput::frontend.yml",
+                                    "Capabilities": "CAPABILITY_IAM,CAPABILITY_NAMED_IAM",
+                                    "ParameterOverrides": { "Fn::Sub": "{\"S3BucketName\":\"${S3BucketName}\",\"S3BucketPrefix\":\"${S3BucketPrefix}\"}"},
+                                    "RoleArn": {
+                                        "Fn::GetAtt": [
+                                            "CloudFormationRole",
+                                            "Arn"
+                                        ]
+                                    }
+                                },
+                                "InputArtifacts": [
+                                    {
+                                        "Name": "SourceOutput"
+                                    }
+                                ],
+                                "RunOrder": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+}

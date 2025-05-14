@@ -1,0 +1,268 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "IAM stack with Lambda and Step Functions roles",
+  "Parameters": {
+    "EnvironmentName": {
+      "Type": "String",
+      "Default": "ccj"
+    }
+  },
+  "Resources": {
+    "LambdaLoadRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {"Fn::Sub": "${EnvironmentName}-lambdaloadrole"},
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": ["lambda.amazonaws.com", "states.amazonaws.com"]
+              },
+              "Action": ["sts:AssumeRole"]
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/CloudWatchFullAccess",
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+        ],
+        "Policies": [
+          {
+            "PolicyName": "lambdaloadpolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "rds:DescribeDBInstances",
+                    "rds:ModifyDBInstance",
+                    "rds:DescribeDBParameterGroups",
+                    "s3:GetBucketLocation",
+                    "s3:ListAllMyBuckets",
+                    "s3:ListBucket",
+                    "s3:GetBucketLocation",
+                    "s3:PutObject",
+                    "s3:GetObject",
+                    "s3:DeleteObject",
+                    "s3:PutObjectAcl",
+                    "s3:GetObjectAcl",
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:BatchGetItem",
+                    "dynamodb:BatchWriteItem",
+                    "dynamodb:DescribeTable",
+                    "dynamodb:ListTables",
+                    "secretsmanager:GetSecretValue",
+                    "secretsmanager:DescribeSecret",
+                    "secretsmanager:ListSecrets",
+                    "secretsmanager:UpdateSecret",
+                    "sns:ListTopics",
+                    "cloudtrail:CreateTrail",
+                    "cloudtrail:UpdateTrail",
+                    "ec2:CreateNetworkInterface",
+                    "ec2:DescribeNetworkInterfaces",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:AssignPrivateIpAddresses",
+                    "ec2:UnassignPrivateIpAddresses",
+                    "events:PutEvents", 
+                    "states:CreateStateMachine",
+                    "states:DeleteStateMachine",
+                    "states:DescribeStateMachine",
+                    "states:ListStateMachines",
+                    "states:UpdateStateMachine",
+                    "states:TagResource",
+                    "states:UntagResource",
+                    "states:ListTagsForResource",
+                    "states:StartExecution",
+                    "states:StopExecution",
+                    "states:DescribeExecution",
+                    "states:GetExecutionHistory",
+                    "states:ListExecutions",
+                    "states:CreateActivity",
+                    "states:DeleteActivity",
+                    "states:DescribeActivity",
+                    "states:GetActivityTask",
+                    "states:ListActivities",
+                    "states:SendTaskFailure",
+                    "states:SendTaskHeartbeat",
+                    "states:SendTaskSuccess",
+                    "lambda:InvokeFunction",
+                    "ssm:GetParameter",
+                    "ssm:GetParameters",
+                    "ssm:GetParametersByPath",
+                    "ec2:DescribeVpcEndpoints",
+                    "ec2:DescribeRouteTables",
+                    "ec2:CreateVpcEndpoint",
+                    "ec2:DeleteVpcEndpoints",
+                    "ec2:ModifyVpcEndpoint",
+                    "dynamodb:DescribeTable",
+                    "dynamodb:GetItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan", 
+                    "dynamodb:BatchWriteItem",
+                    "dynamodb:PutItem"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "LambdaAgentRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {"Fn::Sub": "${EnvironmentName}-lambdaagentrole"},
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": ["lambda.amazonaws.com"]
+              },
+              "Action": ["sts:AssumeRole"]
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/CloudWatchFullAccess",
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+        ],
+        "Policies": [
+          {
+            "PolicyName": "lambdaagentpolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "rds:DescribeDBInstances",
+                    "rds:ModifyDBInstance",
+                    "rds:DescribeDBParameterGroups",
+                    "s3:GetBucketLocation",
+                    "s3:ListAllMyBuckets",
+                    "s3:ListBucket",
+                    "s3:GetBucketLocation",
+                    "s3:PutObject",
+                    "s3:GetObject",
+                    "s3:DeleteObject",
+                    "s3:PutObjectAcl",
+                    "s3:GetObjectAcl",
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:BatchGetItem",
+                    "dynamodb:BatchWriteItem",
+                    "dynamodb:DescribeTable",
+                    "dynamodb:ListTables",
+                    "secretsmanager:GetSecretValue",
+                    "secretsmanager:DescribeSecret",
+                    "secretsmanager:ListSecrets",
+                    "secretsmanager:UpdateSecret",
+                    "sns:ListTopics",
+                    "cloudtrail:CreateTrail",
+                    "cloudtrail:UpdateTrail",
+                    "ec2:CreateNetworkInterface",
+                    "ec2:DescribeNetworkInterfaces",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:AssignPrivateIpAddresses",
+                    "ec2:UnassignPrivateIpAddresses", 
+                    "events:PutEvents", 
+                    "states:CreateStateMachine",
+                    "states:DeleteStateMachine",
+                    "states:DescribeStateMachine",
+                    "states:ListStateMachines",
+                    "states:UpdateStateMachine",
+                    "states:TagResource",
+                    "states:UntagResource",
+                    "states:ListTagsForResource",
+                    "states:StartExecution",
+                    "states:StopExecution",
+                    "states:DescribeExecution",
+                    "states:GetExecutionHistory",
+                    "states:ListExecutions",
+                    "states:CreateActivity",
+                    "states:DeleteActivity",
+                    "states:DescribeActivity",
+                    "states:GetActivityTask",
+                    "states:ListActivities",
+                    "states:SendTaskFailure",
+                    "states:SendTaskHeartbeat",
+                    "states:SendTaskSuccess",
+                    "lambda:InvokeFunction",
+                    "ssm:GetParameter",
+                    "ssm:GetParameters",
+                    "ssm:GetParametersByPath",
+                    "ec2:DescribeVpcEndpoints",
+                    "ec2:DescribeRouteTables",
+                    "ec2:CreateVpcEndpoint",
+                    "ec2:DeleteVpcEndpoints",
+                    "ec2:ModifyVpcEndpoint",
+                    "dynamodb:DescribeTable",
+                    "dynamodb:GetItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:BatchWriteItem",
+                    "dynamodb:PutItem"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:InvokeFunction"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "bedrock:GetFoundationModel",
+                    "bedrock:ListFoundationModels",
+                    "bedrock:InvokeModel",
+                    "bedrock:CreateAgent",
+                    "bedrock:DeleteAgent",
+                    "bedrock:GetAgent",
+                    "bedrock:ListAgents",
+                    "bedrock:InvokeAgent"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "StackName": {
+      "Description": "The name of this stack",
+      "Value": {"Ref": "AWS::StackName"},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-StackName"}}
+    },
+    "LambdaLoadRoleArn": {
+      "Description": "ARN of the Lambda Load Role",
+      "Value": {"Fn::GetAtt": ["LambdaLoadRole", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-LambdaLoadRole"}}
+    },
+    "LambdaAgentRoleArn": {
+      "Description": "ARN of the Lambda Agent Role",
+      "Value": {"Fn::GetAtt": ["LambdaAgentRole", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-LambdaAgentRole"}}
+    }
+  }
+}

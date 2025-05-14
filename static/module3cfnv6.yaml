@@ -1,0 +1,784 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for five Python 3.12 Lambda functions with S3 code and Bedrock invocation permission'
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: 'S3 bucket containing the Lambda function code'
+  S3BucketPrefix:
+    Type: String
+    Description: "Name of the S3 bucket Prefix containing the code"
+  GetCustomerJourneyS3Key:
+    Type: String
+    Description: 'S3 key for the GetCustomerJourney Lambda function code'
+    Default: 'module3/lambdafunctions/get_customer_journey.py.zip'
+  OfferExtractorS3Key:
+    Type: String
+    Description: 'S3 key for the OfferEligibilityExtractor Lambda function code'
+    Default: 'module3/lambdafunctions/offer_eligibility_extractor.py.zip'
+  JsonToStringS3Key:
+    Type: String
+    Description: 'S3 key for the JsonToString Lambda function code'
+    Default: 'module3/lambdafunctions/json_to_string.py.zip'
+  CustomerSegmentAssignerS3Key:
+    Type: String
+    Description: 'S3 key for the CustomerSegmentAssigner Lambda function code'
+    Default: 'module3/lambdafunctions/customer_segment_assigner.py.zip'
+  GetProductMatchesS3Key:
+    Type: String
+    Description: 'S3 key for the GetProductMatches Lambda function code'
+    Default: 'module3/lambdafunctions/get_product_matches.py.zip'
+  GetOfferNegotiationBandS3Key:
+    Type: String
+    Description: 'S3 key for the GetOfferNegotiationBand Lambda function code'
+    Default: 'module3/lambdafunctions/get_offer_negotiation_band.py.zip'
+  Module1CreateCJES3Key:
+    Type: String
+    Description: 'S3 key for the GetOfferNegotiationBand Lambda function code'
+    Default: 'module1/lambdafunctions/module1_create_cje.py.zip'
+  
+  ApiUrl:
+    Type: String
+    Description: 'API URL to be set as an environment variable'
+    Default: 'https://6von56eb0d.execute-api.us-east-1.amazonaws.com/prod/customer-journey'
+  #this is the stack which contains the base infrastructure, database, and apis
+  MainStackName:
+    Type: String
+    Default: cfn-intro-main
+    Description: Name of the main stack to extract outputs from
+
+Resources:
+  CustomerJourneySecret:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: 'customer_journey'
+      Description: 'Secret for customer journey API keys'
+      SecretString: '{"get_customer_journey":"KMwFLTFTuK7wnzIsnCiIG1HxLJtXSwlh6Bsp3LlZ","insert_customer_journey_event":"tat9l69UA21LvYXYpRULR71GcxO2FYSr6vn8nqMq"}'
+
+  ConfigBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - !Ref AWS::StackName
+          - 'bucket'
+          - !Ref AWS::AccountId
+          - !Ref AWS::Region
+          - !Select [4, !Split ['-', !Ref AWS::StackId]]
+
+  # IAM Role for Lambda
+  CopyFileFunctionExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-s3-access-policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:GetBucket*'
+                Resource: 
+                  - !Sub 'arn:aws:s3:::${S3BucketName}'
+                  - !Sub 'arn:aws:s3:::${S3BucketName}/*'
+              - Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:ListBucket'
+                  - 's3:GetBucket*'
+                Resource: 
+                  - !Sub 'arn:aws:s3:::${ConfigBucket}'
+                  - !Sub 'arn:aws:s3:::${ConfigBucket}/*'
+
+  # Additional policy for Lambda
+  SourceCodeLambdaRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - s3:GetObject*
+              - s3:GetBucket*
+              - s3:List*
+              - s3:DeleteObject*
+              - s3:PutObject
+              - s3:Abort*
+            Effect: Allow
+            Resource: "*"
+        Version: "2012-10-17"
+      PolicyName: SourceCodeLambdaRolePolicy
+      Roles:
+        - Ref: CopyFileFunctionExecutionRole
+
+  # Lambda function to copy file
+  CopyFileFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-copy-file-function'
+      Handler: 'index.lambda_handler'
+      Role: !GetAtt CopyFileFunctionExecutionRole.Arn
+      Runtime: 'python3.12'
+      Timeout: 120
+      Code:
+        ZipFile: !Sub |
+          import boto3
+          import cfnresponse
+
+          def lambda_handler(event, context):
+            s3 = boto3.client('s3')
+
+            source_bucket = '${S3BucketName}'
+            prodcat_source_key = '${S3BucketPrefix}module3/docs/product_catalog.txt'
+            prod_seg_mapping_key = '${S3BucketPrefix}module3/docs/product_segment_mapping.json'
+            seg_config_key = '${S3BucketPrefix}module3/docs/segment_config.json'
+            
+            try:
+
+              dest_bucket = '${ConfigBucket}'
+              
+              prodcat_dest_key = 'product-catalog/product_catalog.txt'
+              prod_seg_mapping_dest_key = 'product-segment-mapping/product_segment_mapping.json'
+              seg_config_dest_key = 'segment-config/segment_config.json'
+
+              s3.copy_object(
+                CopySource={'Bucket': source_bucket, 'Key': prodcat_source_key},
+                Bucket=dest_bucket,
+                Key=prodcat_dest_key
+              )
+
+              s3.copy_object(
+                CopySource={'Bucket': source_bucket, 'Key': prod_seg_mapping_key},
+                Bucket=dest_bucket,
+                Key=prod_seg_mapping_dest_key
+              )
+
+              s3.copy_object(
+                CopySource={'Bucket': source_bucket, 'Key': seg_config_key},
+                Bucket=dest_bucket,
+                Key=seg_config_dest_key
+              )
+
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {"message": "Files copied successfully"})
+            except Exception as e:
+              print(str(e))
+              cfnresponse.send(event, context, cfnresponse.FAILED, {"message": "File copy failed"})
+
+  # Custom resource to trigger Lambda function
+  TriggerLambdaFunction:
+    Type: 'Custom::TriggerLambda'
+    Properties:
+      ServiceToken: !GetAtt CopyFileFunction.Arn
+
+  GetCustomerJourneyExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 'secretsmanager:GetSecretValue'
+                Resource: !ImportValue
+                  Fn::Sub: ${MainStackName}-APIKeySecret
+        - PolicyName: APIGatewayInvokeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'execute-api:Invoke'
+                  - 'execute-api:ManageConnections'
+                Resource: 'arn:aws:execute-api:*:*:*'
+        - PolicyName: ApiGatewayAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                Resource: !Sub 'arn:aws:apigateway:${AWS::Region}::/apikeys/*'
+
+  GetCustomerJourneyFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'GetCustomerJourney'
+      Handler: 'get_customer_journey.lambda_handler'
+      Role: !GetAtt GetCustomerJourneyExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref S3BucketName
+        S3Key: !Sub '${S3BucketPrefix}${GetCustomerJourneyS3Key}'
+      Runtime: 'python3.12'
+      Environment:
+        Variables:
+          API_URL: !ImportValue 
+            Fn::Sub: ${MainStackName}-GetCustomerJourneyAPIUrl
+          SECRET_ARN: !ImportValue 
+            Fn::Sub: ${MainStackName}-APIKeySecret
+      Timeout: 300
+      Layers:
+        - 'arn:aws:lambda:us-west-2:770693421928:layer:Klayers-p312-requests:9'
+
+  GetCustomerJourneyResourcePolicy:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref GetCustomerJourneyFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'bedrock.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:*'
+  
+  GetCustomerJourneyFunctionVersion:
+    Type: 'AWS::Lambda::Version'
+    Properties:
+      FunctionName: !Ref GetCustomerJourneyFunction
+      Description: 'Release version of GetCustomerJourney Lambda function'
+
+  OfferExtractorLambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+
+  OfferEligibilityExtractorFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'OfferEligibilityExtractor'
+      Handler: 'offer_eligibility_extractor.lambda_handler'
+      Role: !GetAtt OfferExtractorLambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref S3BucketName
+        S3Key: !Sub '${S3BucketPrefix}${OfferExtractorS3Key}'
+      Runtime: 'python3.12'
+      Timeout: 300
+
+  OfferExtractorLambdaResourcePolicy:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref OfferEligibilityExtractorFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'bedrock.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:*'
+
+  JsonToStringExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+
+  JsonToStringFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'JsonToString'
+      Handler: 'json_to_string.lambda_handler'
+      Role: !GetAtt JsonToStringExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref S3BucketName
+        S3Key: !Sub '${S3BucketPrefix}${JsonToStringS3Key}'
+      Runtime: 'python3.12'
+      Timeout: 300
+
+  JsonToStringResourcePolicy:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref JsonToStringFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'bedrock.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:*'
+
+  CustomerSegmentAssignerExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 'secretsmanager:GetSecretValue'
+                Resource: !Ref CustomerJourneySecret
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                Resource: !Sub '${ConfigBucket.Arn}/*'
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 'bedrock:InvokeModel'
+                Resource: 'arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
+
+  CustomerSegmentAssignerFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'CustomerSegmentAssigner'
+      Handler: 'customer_segment_assigner.lambda_handler'
+      Role: !GetAtt CustomerSegmentAssignerExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref S3BucketName
+        S3Key: !Sub '${S3BucketPrefix}${CustomerSegmentAssignerS3Key}'
+      Runtime: 'python3.12'
+      Environment:
+        Variables:
+          API_URL: !Ref ApiUrl
+          SECRET_ARN: !Ref CustomerJourneySecret
+          CONFIG_BUCKET: !Ref ConfigBucket
+          SEGMENT_CONFIG_KEY: 'segment-config/segment_config.json'
+      Timeout: 300
+      Layers:
+        - 'arn:aws:lambda:us-west-2:770693421928:layer:Klayers-p312-requests:9'
+
+  CustomerSegmentAssignerResourcePolicy:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref CustomerSegmentAssignerFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'bedrock.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:*'
+  
+  GetProductMatchesExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                Resource: !Sub '${ConfigBucket.Arn}/*'
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 'bedrock:InvokeModel'
+                Resource: 'arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
+
+  GetProductMatchesFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'GetProductMatches'
+      Handler: 'get_product_matches.lambda_handler'
+      Role: !GetAtt GetProductMatchesExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref S3BucketName
+        S3Key: !Sub '${S3BucketPrefix}${GetProductMatchesS3Key}'
+      Runtime: 'python3.12'
+      Environment:
+        Variables:
+          CONFIG_BUCKET: !Ref ConfigBucket
+          PRODUCT_SEGMENT_MAPPING_KEY: 'product-segment-mapping/product_segment_mapping.json'
+      Timeout: 300
+
+  GetProductMatchesResourcePolicy:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref GetProductMatchesFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'bedrock.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:*'
+
+  GetOfferNegotiationBandExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 'bedrock:InvokeModel'
+                Resource: 'arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
+
+  GetOfferNegotiationBandFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'GetOfferNegotiationBand'
+      Handler: 'get_offer_negotiation_band.lambda_handler'
+      Role: !GetAtt GetOfferNegotiationBandExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref S3BucketName
+        S3Key: !Sub '${S3BucketPrefix}${GetOfferNegotiationBandS3Key}'
+      Runtime: 'python3.12'
+      Timeout: 30
+
+  GetOfferNegotiationBandResourcePolicy:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref GetOfferNegotiationBandFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'bedrock.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:*'
+
+  Module1CreateCJEFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'Module1CreateCJEFunction'
+      Handler: 'module1_create_cje.lambda_handler'
+      Role: !GetAtt Module1CreateCJEFunctionExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref S3BucketName
+        S3Key: !Sub '${S3BucketPrefix}${Module1CreateCJES3Key}'
+      Runtime: python3.12
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          API_ENDPOINT: !ImportValue 
+            Fn::Sub: ${MainStackName}-PutCustomerJourneyAPIUrl
+          SECRET_ARN: !ImportValue 
+            Fn::Sub: ${MainStackName}-APIKeySecret
+
+  Module1CreateCJEFunctionExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: Module1CreateCJEFunctionExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 'bedrock:InvokeModel'
+                Resource: 'arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 'secretsmanager:GetSecretValue'
+                Resource: !ImportValue
+                  Fn::Sub: ${MainStackName}-APIKeySecret
+        - PolicyName: APIGatewayInvokeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'execute-api:Invoke'
+                  - 'execute-api:ManageConnections'
+                Resource: 'arn:aws:execute-api:*:*:*'
+        - PolicyName: ApiGatewayAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                Resource: !Sub 'arn:aws:apigateway:${AWS::Region}::/apikeys/*'
+
+  Module1CreateCJEFunctionPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref Module1CreateCJEFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'bedrock.amazonaws.com'
+
+  BedrockPrompt:
+    Type: AWS::Bedrock::Prompt
+    Properties:
+      Name: OfferEligibilityChecker
+      Description: Prompt for analyzing customer journey data
+      DefaultVariant: MainVariant
+      Variants: 
+        - Name: MainVariant
+          TemplateType: TEXT
+          TemplateConfiguration:
+            Text:
+              Text: |
+                <context>
+                You are analyzing customer journey data to determine offer eligibility. The data contains events with types, details, and timestamps.
+                </context>
+                <objective>
+                Determine if the customer is eligible for a cross-sell or up-sell offer based on specific triggers in their recent journey data.
+                </objective>
+                <style_and_tone>
+                Provide a structured, step-by-step analysis with clear reasoning. Maintain a professional and objective tone.
+                </style_and_tone>
+                <audience>
+                This analysis is for business analysts and marketing teams.
+                </audience>
+                <instructions>
+                1. Identify the latest event timestamp as the reference point.
+                2. For each trigger type, filter events by matching the event type(which is the third column of the customer journey data) that match the below criteria and which occured within the specified recent time period:
+                a. offer_engaged - last 7 days - Note that Offer Engagement must not be confused with Product impressions or Loyalty app events. Include product type in the product_type field if found.
+                b. offer_made - last 7 days - Note that Offer Made events must not be confused with Product impressions or Loyalty app events. Include product type in the product_type field if found.
+                c. contract_expiry_due_in_3months - last 5 days - Do not assume contract exiry unless an expicit event for contract expiry is present in the customer journey data.
+                d. product_offering_impression - last 5 days - Note that Product impressions are different from loyalty app events. Include product type in the product_type field if found.
+                e. network_experience - last 10 days    - Include the experience issue types found in the network_experience_issue_type field.
+                f. loyalty_app - last 3 days - Include the voucher or product type in the product_type field if found.
+                3. It is CRITICAL to analyze ONLY filtered events for eligibility. Do not come up with your own reasons.
+                4. Populate reason field by providing reasoning ONLY on filtered events within specified timeframes. 5. Assign priorities to reasons based on the following order of event types: offer_engaged, product_offering_impression, contract_expiry_due_in_3months, loyalty_app, network_experience
+                6. If no events meet criteria, indicate customer is not eligible.
+                7. Think step-by-step, showing your work.
+                8. Only use provided customer journey data. Do not make assumptions.
+                9. Flag any uncertainties in your analysis.
+                </instructions>
+                <response_format>
+                Provide your response in this JSON format:
+                {
+                "customer_id": INTEGER(customer_id field in the input),
+                "offer_eligible": boolean,
+                "reasons": [     {       "reason": string,       "product_type": list of strings (if applicable), "network_experience_issue_type": list of strings (if applicable),      "trigger_event_date": datetime (if applicable),       "priority": integer     }   ],
+                "analysis_process": [     {       "step": string,       "reasoning": string     }   ] }
+                </response_format>
+                <customer_journey_data_columns>
+                customer_id INTEGER, event_id INTEGER PRIMARY KEY, event_type_name TEXT, event_description TEXT, timestamp TIMESTAMP WITH TIME ZONE
+                </customer_journey_data_columns>
+                <customer_journey_data> {{customer_journey_data}} </customer_journey_data>
+                <event_type_definitions>
+                1. "bill_pay" - "Any event related to bill payment, including payment amounts, channels used (e.g., mobile app, website, phone support, in-store, auto-pay), and payment methods (e.g., credit card, debit card, PayPal, bank transfer, cash)."
+                2. "usage" -  "Events capturing customer usage of services, including browsing data consumption, voice minutes used, and video streaming data usage. This can include specific apps or platforms used for streaming."
+                3. "loyalty_app" -  "Interactions with the loyalty program app, such as redeeming vouchers or rewards. This includes details about the type of voucher, its value, and expiration date."
+                4. "network_experience" -  "Events related to the customer's network experience, including issues like slow data, service outages, voice quality problems, coverage issues, and dropped calls. This includes details about the duration, location, and specific symptoms of the issue."
+                5. "product_offering_impression" -  "Events capturing user interest in product offerings, including details about the product type (mobile phone with plan or sim only plan), data allowances, minutes, texts, and the channels where the impression was made."
+                6. "offer_made" -  "Events recording offers made to users, including product details, the channel where the offer was made, and the campaign it was part of."
+                7. "offer_engaged" - "Events indicating that a user has read an offer and started the process of availing it, including the channel where this engagement occurred."
+                8. "offer_accepted" - "Events confirming that a user has accepted and availed an offer, including the channel through which the offer was accepted."
+                9. "contract_expiry_due_in_3months" - "Event indicates that the customers contract is due to expire in 3 months."
+                </event_type_definitions>
+                Now, based on this analysis, determine if the customer is eligible for a cross-sell or up-sell offer and provide your reasoning in the specified JSON format. Remember to consider ONLY the events within the customer journey data that match the specified recent time periods for each trigger. Respond ONLY with the json payload.
+          ModelId: anthropic.claude-3-haiku-20240307-v1:0
+          InferenceConfiguration:
+            Text:
+              Temperature: 1.0
+              TopP: 0.9
+              MaxTokens: 4096
+
+  AgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BedrockModelInvokePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: '*'
+
+  CustomerSegmentationAgent:
+    Type: AWS::Bedrock::Agent
+    Properties:
+      AgentName: CustomerSegmentationAgent
+      AgentResourceRoleArn: !GetAtt AgentRole.Arn
+      Description: This agent segments customer by analyzing their customer journey.
+      FoundationModel: anthropic.claude-3-haiku-20240307-v1:0
+      Instruction: |
+        You are a customer segmentation expert. Your objective is to segement the customers. The inputs to this are as follows:
+        1. customer_id
+        2. Offer eligibility reasoning 
+
+        Derive the customer segment that the customer belongs to by using the segment-customer action group.
+
+        Respond only with the json.
+      ActionGroups:
+        - ActionGroupName: get-customer-segment
+          ActionGroupExecutor:
+            Lambda: !GetAtt CustomerSegmentAssignerFunction.Arn
+          FunctionSchema:
+            Functions:
+              - Name: segment_customer
+                Description: This function gets the customer segment by analyzing the customer journey. It also passes through the offer eligibility reasons that were provided to it as an input so that it can be used by downstream applications.
+                Parameters:
+                  customer_id:
+                    Type: string
+                    Description: This is the customer id of the customer
+                    Required: true
+                  offer_eligibility_reasons:
+                    Type: string
+                    Description: These are the reasons due to which the offer eligibility for this customer is True
+                    Required: true
+      AutoPrepare: true
+
+  ProductRecommendationAgent:
+    Type: AWS::Bedrock::Agent
+    Properties:
+      AgentName: ProductRecommendationAgent
+      AgentResourceRoleArn: !GetAtt AgentRole.Arn
+      Description: This agents recommends products using the customer segmentation and the product segment mapping.
+      FoundationModel: anthropic.claude-3-haiku-20240307-v1:0
+      Instruction: |
+        You are a customer sales expert. Your objective is to identify a ranked list of offers recommended for a customer and the offer negotiation bands for the particular customer. The inputs to this are as follows:
+        1. customer_id
+        2. Offer eligibility reasoning
+        3. customer segmentation
+
+        Derive the recommended list of offers and offer negotiation bands by running through the following steps in sequence:
+        1. Find matching products by using the customer segmentation by calling get-product-recommendations action group.
+        4. Rank the matched products by aligning the priority based on the offer eligibility criteria provided in the input.
+        5. Determine the offer negotiation band by analyzing the customer profile and the recommended products using the action group get-offer-negotiation-bands. output from the action group should be populated in the json as for example: "offer_negotiation_band": 10
+
+        Do not use your own knowledge recommend products and derive offer negotiation bands. Use the tools provided to you in the action groups mentioned.
+
+        You respond with the recommended products in a numbered list with the price, product description of the product offer, the reason why this product offering was recommended for the customer, and the offer negotiation band per product. Follow the below format in your response:
+
+        {   
+        "product_offering_name": string,
+        "price": string,
+        "reasons": [     {"reason": string}   ],
+        "offer_negotiation_band": number
+        }
+      ActionGroups:
+        - ActionGroupName: get-product-recommendations
+          Description: This action group looks at the customer segment and the product segment mapping to generate product recommendations.
+          ActionGroupExecutor:
+            Lambda: !GetAtt GetProductMatchesFunction.Arn
+          FunctionSchema:
+            Functions:
+              - Name: get_product_matches
+                Description: This function looks at the customer segment and the product segment mapping to generate product recommendations.
+                Parameters:
+                  customer_segmentation:
+                    Type: string
+                    Description: This action group gets product matches based on the 'customer segementation' and the 'product segment mapping'.
+                    Required: True
+        - ActionGroupName: get-offer-negotiation-bands
+          Description: This action group looks at the recommended offers and the customer profile to determine the offer negotiation band.
+          ActionGroupExecutor:
+            Lambda: !GetAtt GetOfferNegotiationBandFunction.Arn
+          FunctionSchema:
+            Functions:
+              - Name: get-offer-negotiation-bands
+                Description: This function looks at the recommended offers and the customer profile to determine the offer negotiation band.
+                Parameters:
+                  recommended_products:
+                    Type: string
+                    Description: These are the products recommended for the customer.
+                    Required: True
+      AutoPrepare: true
+  
+Outputs:
+  GetCustomerJourneyFunctionArn:
+    Description: 'ARN of the created GetCustomerJourney Lambda function'
+    Value: !GetAtt GetCustomerJourneyFunction.Arn
+  OfferExtractorLambdaFunctionArn:
+    Description: 'ARN of the created OfferEligibilityExtractor Lambda function'
+    Value: !GetAtt OfferEligibilityExtractorFunction.Arn
+  JsonToStringFunctionArn:
+    Description: 'ARN of the created JsonToString Lambda function'
+    Value: !GetAtt JsonToStringFunction.Arn
+  CustomerSegmentAssignerFunctionArn:
+    Description: 'ARN of the created CustomerSegmentAssigner Lambda function'
+    Value: !GetAtt CustomerSegmentAssignerFunction.Arn
+  CustomerJourneySecretArn:
+    Description: 'ARN of the created CustomerJourney Secret'
+    Value: !Ref CustomerJourneySecret
+  ConfigBucketName:
+    Description: 'Name of the created Config S3 Bucket'
+    Value: !Ref ConfigBucket
+  GetProductMatchesFunctionArn:
+    Description: 'ARN of the created GetProductMatches Lambda function'
+    Value: !GetAtt GetProductMatchesFunction.Arn
+  GetOfferNegotiationBandFunctionArn:
+    Description: 'ARN of the created GetOfferNegotiationBand Lambda function'
+    Value: !GetAtt GetOfferNegotiationBandFunction.Arn
+  OfferEligibilityCheckPromptArn:
+    Description: ARN of the created Bedrock prompt
+    Value: !GetAtt BedrockPrompt.Arn
+  CustomerSegmentationAgentName:
+    Description: Name of the Customer Segmentation Agent
+    Value: !Ref CustomerSegmentationAgent
+  CustomerSegmentationAgentArn:
+    Description: ARN of the Customer Segmentation Agent
+    Value: !GetAtt CustomerSegmentationAgent.AgentArn
+  ProductRecommendationAgentName:
+    Description: Name of the Product Recommendation Agent
+    Value: !Ref ProductRecommendationAgent
+  ProductRecommendationAgentArn:
+    Description: ARN of the Product Recommendation Agent
+    Value: !GetAtt ProductRecommendationAgent.AgentArn
