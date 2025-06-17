@@ -4,11 +4,14 @@ weight : 60
 ---
 ## In the section you will build the Amazon Bedrock Agent
  
-1. On the left side bar of Bedrock console, under **Builder tools** click **Agents**. And then click **Create Agent**. A new window will open, set name as `bill_shock_agent` and leave description field empty. And click **Create**. You will get a green message on the top that **Agent: bill_shock_agent was successfully created** (follow the red arrows and red box in below pictures). 
+1. On the left side bar of Bedrock console, under **Builder tools** click **Agents**. And then click **Create Agent** (follow the red arrows and red box in below pictures). 
 
 ![agent](/static/module2images/agent.png)
 ![create agent](/static/module2images/createagent.png)
-![agent details](/static/module2images/bsagentcreate.png)
+
+- A new window will open, set name as :code[bill_shock_agent]{showCopyAction=true} and leave description field empty. And click **Create**. You will get a green message on the top that **Agent: bill_shock_agent was successfully created**
+
+![agent details](/static/module2images/bsp200.png)
 ![agent created](/static/module2images/bscreated.png)
 
 2. Under this agent, you will create only one action group. 
@@ -17,14 +20,17 @@ weight : 60
 ![add action group](/static/module2images/ag.png)
 
 4. Billshock action group creation (follow the red arrows and red boxes in below pictures).
-      - Set **Enter Action group name:** `billshockagent`
-      - Set **Description:** `based on mobile number and secret key it autheticates the custumer. And then check the last month bill with other 2 months`
-      - Under **Action group type** select **define with function details**.
-      - Under **Action group invocation** select **Select an existing Lambda function**.
-      - Under **Select Lambda function** click to open the drop down and select **billshockagent**, keep the **Function version** as **$LATEST**.
-      - Under **Action group function 1**, click **JSON Editor** on the right and paste the below json code. Click **Table** to re-verify all the parameters are right then click **Create** at the bottom.
+ - Set **Enter Action group name:** :code[billshockagent]{showCopyAction=true}
+ - Set **Description:** :code[based on mobile number and secret key it autheticates the customer. And then check the last month bill with other 2 months]{showCopyAction=true}
+ - Under **Action group type** select **define with function details**.
+ - Under **Action group invocation** select **Select an existing Lambda function**.
+ - Under **Select Lambda function** click to open the drop down and select :code[billshockagent]{showCopyAction=true}, keep the **Function version** as **$LATEST**.
 
-```json
+![add action group](/static/module2images/bsag.png)
+
+ - Under **Action group function 1**, click **JSON Editor** on the right and paste the below json code.
+
+:::code{showCopyAction=true showLineNumbers=false language=json}
 {
   "name": "billshock",
   "description": "Get roaming_eligible value for the customer, get all the paramters",
@@ -44,10 +50,12 @@ weight : 60
   ],
   "requireConfirmation": "DISABLED"
 }
-```
--
-![add action group](/static/module2images/bsag.png)
+:::
+
 ![add action group](/static/module2images/bsf.png)
+
+ - Click **Table** to re-verify all the parameters are right then click **Create** at the bottom.
+
 ![add action group](/static/module2images/bsp110.png)
 
 5. Congratulations! You have successfully created the action group.  
@@ -59,7 +67,7 @@ weight : 60
 
 7. Under **Instructions for the Agent** paste following instruction (follow the red arrow in below picture).
 
-```json
+:::code{showCopyAction=true showLineNumbers=false language=json}
 Role: You are a bill analysis agent who analyses customers bill and explain why the bill is high compared to other month.If customer ask for a particular month then just explain that month bill. 
 Objective: You should help customers to help them understand in detail why their bill is high 
 1. First Step:
@@ -80,8 +88,9 @@ Objective: You should help customers to help them understand in detail why their
 Question: Why my bill is high ?
 You will first greet the customer "Welcome to Oktank Billing Support, I am here to help you". You will apologize to the customer and rephrase the question then ask the customer for customer mobile number and secret_key. Successfully Authenticate the customer then break down the query into sub queries and invoke all available tools to provide a coherent answer.  
 
-```
-- 
+:::
+
+
 ![add kb](/static/module2images/bsp131.png)
 
 8. Under **Additional settings**, go to **User input**, then click **Enabled** (follow the red arrow in below picture).
@@ -90,7 +99,7 @@ You will first greet the customer "Welcome to Oktank Billing Support, I am here 
 
 9. Do verify following details a) **Agent Name** b) **Agent resource role** c) **Select model** d) **Instruction for the agent** should not be blank e) one action group should be there under **Action Groups** . If all is good then scroll up and click **Save** (follow the red arrows in below pictures).
 
-![add kb](/static/module2images/bsp66.png)
+![add kb](/static/module2images/bsp201.png)
 ![add kb](/static/module2images/bsp65.png)
 ![add kb](/static/module2images/bsf2.png) 
 ![add kb](/static/module2images/bsp140.png) 
@@ -98,66 +107,87 @@ You will first greet the customer "Welcome to Oktank Billing Support, I am here 
 
 10. Now you will add two knowledge bases created in previous sections. 
 
-11. Let's add the first knowledge base. Scroll down to **Knowledge bases** and click **Add**. Select **billshock-disabledataroaming-kb**, under **Knowledge base instructions for Agent** put `knowledge base to find how to disable data roaming on iphone` (follow the red arrows in below pictures).
+11. Let's add the first knowledge base. Scroll down to **Knowledge bases** and click **Add**. Select **billshock-disabledataroaming-kb**, under **Knowledge base instructions for Agent** put :code[knowledge base to find how to disable data roaming on iphone]{showCopyAction=true} (follow the red arrows in below pictures).
 
 ![add kb](/static/module2images/kb1add.png)
 ![add kb](/static/module2images/bsp43.png) 
 
-12. Let's add the second and the last knowledge base. Scroll down to **Knowledge bases** and click **Add**. Select **billshock-dataroamingplan-kb**, under **Knowledge base instructions for Agent** put `find all the data roaming plans`(follow the red arrows in below pictures).
+12. Let's add the second and the last knowledge base. Scroll down to **Knowledge bases** and click **Add**. Select **billshock-dataroamingplan-kb**, under **Knowledge base instructions for Agent** put :code[find all the data roaming plans]{showCopyAction=true} (follow the red arrows in below pictures).
 
 ![add kb](/static/module2images/kb1add.png)
 ![add kb](/static/module2images/bsp44.png) 
 
 13. Congratulations! You have added 2 knowledge bases. 
 
-14. Scroll all the way to the bottom to **Advanced Prompts**. Click **Edit**. 
+14. Scroll all the way to the bottom to **Orchestration strategy** (earlier it was called as Advanced Prompts). Click **Edit**. 
 
-15. Under **Advanced Prompts** (follow the red arrows in below pictures).
+![add kb](/static/module2images/ap1.png)
+
+15. Under **Orchestration strategy** (follow the red arrows in below pictures).
  - Click **Orchestration** enable **Override orchestration template defaults**. It will ask to confirm and click **Confirm**. Enable **Activate orchestration template** (if not enabled). 
     -  Under **Configurations** set following values:
         -  **Temperature:** `0`
         -  **Top P:** `0`
         -  **Top K:** `0` 
- - Click **KB response generation** enable **Override knwoledge base response generation template defaults**. It will ask to confirm and click **Confirm**. 
-    -  Under **Configurations** set following values:
-        -  **Temperature:** `0`
-        -  **Top P:** `0`
-        -  **Top K:** `0` 
+        -  **Max completion length:** `4096`
+
+![add kb](/static/module2images/o1.png)  
+
+![add kb](/static/module2images/o2.png) 
+
+![add kb](/static/module2images/bsp51.png)
+
+![add kb](/static/module2images/nfta1.png)
+
+ - Click **KB response generation** enable **Override knowledge base response generation template defaults**. 
+::alert[Make sure Activate Knowledge Base response generation template is **disabled**] 
+ It will ask to confirm and click **Confirm**. 
+  -  Under **Configurations** set following values:
+      -  **Temperature:** `0`
+      -  **Top P:** `0`
+      -  **Top K:** `0` 
+
+![add kb](/static/module2images/nfta151.png) 
+
+![add kb](/static/module2images/k1.png) 
+
+![add kb](/static/module2images/nfta66.png) 
+
+![add kb](/static/module2images/bsp52.png) 
+
  - Click **Post-processing** enable **Override post-processing template defaults**. It will ask to confirm and click **Confirm**. Enable **Activate post-processing template**. 
      -  Under **Configurations** set following values:
         -  **Temperature:** `0`
         -  **Top P:** `0`
         -  **Top K:** `0` 
         -  **Max completion length:** `4096`
- - At the bottom right corner **Save and exit**. 
 
-![add kb](/static/module2images/ap1.png)
-![add kb](/static/module2images/o1.png)  
-![add kb](/static/module2images/o2.png) 
-![add kb](/static/module2images/bsp51.png)
-![add kb](/static/module2images/bsp52.png)
-![add kb](/static/module2images/k1.png) 
-![add kb](/static/module2images/nfta66.png) 
-![add kb](/static/module2images/bsp52.png) 
+![add kb](/static/module2images/nfta152.png) 
+
 ![add kb](/static/module2images/pp1.png) 
-![add kb](/static/module2images/pp1.png) 
+
 ![add kb](/static/module2images/bsp54.png) 
+
 ![add kb](/static/module2images/bsp55.png) 
+
+ - At the bottom right corner **Save and exit**. 
 
 16. In the agent console, scroll up and **Save and Exit**. After **Save and Exit**, scroll-up to read the message in the green banner. It is asking to prepare the agent **Agent: bill_shock_agent was successfully updated. Prepare the agent to keep its detail up to date**. 
 - On the right side of the console under **Test** you will see **Prepare**. Click **Prepare**. Then you will get one more message in green banner which will say **Agent: bill_shock_agent was successfully prepared** (follow the red arrows in below pictures). 
 
 ![add kb](/static/module2images/bsp100.png)
+
 ![add kb](/static/module2images/bsp101.png)
+
 ![add kb](/static/module2images/bsp102.png)
 
 17. Click **Create Alias**. Set following values: 
-    - **Alias name:** `billshock_alias` 
-    - **description:** `alias for billshock agent` 
+    - **Alias name:** :code[billshock_alias]{showCopyAction=true} 
+    - **description:** :code[alias for billshock agent]{showCopyAction=true} 
 - And click **Create Alias** at the bottom (follow the red arrows in below pictures). 
 
-![add kb](/static/module2images/bsp103.png)
-![add kb](/static/module2images/bsca2.png)
+![add kb](/static/module2images/bsp202.png)
+![add kb](/static/module2images/bsp203.png)
 
 ###### Note: We have not enabled Bedrock Guardrails but it is highly recommended to enable it and use other best practices when deploying it in production.  
 

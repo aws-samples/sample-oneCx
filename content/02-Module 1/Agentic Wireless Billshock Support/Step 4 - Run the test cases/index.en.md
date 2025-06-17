@@ -5,22 +5,23 @@ weight : 70
 
 ## You will be running below scenario. Before starting this section make sure all previous steps are completed successfully
 ###### Scenario1: Imagine you are a CSP providing Wireless services to your customer across the world. You have deployed this bill shock agent to address customer question's related to high bill. One of your customers is shocked to see the last month bill and asked for explanation.  
-1. On the right side of the console, locate the chat window at the bottom (follow the red arrow in below picture). Type `why my bill is high` and the agent responds with a greeting message and ask for `customer mobile number and secret key` for authentication (read the text in below picture). 
+1. On the right side of the console, locate the chat window at the bottom (follow the red arrow in below picture). Copy and paste :code[why my bill is high]{showCopyAction=true} and hit enter. The agent responds with a greeting message and ask for `customer mobile number and secret key` for authentication (read the text in below picture). 
 
 ![add kb](/static/module2images/t1.png)
-![add kb](/static/module2images/bs1.png)
-
-2. Type **9000000002 435602**. First the agent authenticates the user by checking customer mobile number and secret key. Then it calls the bill shock API to analyse the customer last month bill. It educates the customer why last month bill is high as compared to previous month. Also it explains the reasoning for high bill - customer used more roaming data and made more calls duing roaming. This led to increased bill. It suggest the customer to buy roaming plan called  Globetrotter Lite and explain the plan. Additionally it suggest the customer to disable the data roaming to provent accidental charges (read the text in below picture). 
 
 ![add kb](/static/module2images/bs1.png)
+
+2. Copy and paste :code[9000000002 435602]{showCopyAction=true} and hit enter. First the agent authenticates the user by checking customer mobile number and secret key. Then it calls the bill shock API to analyse the customer last month bill. It educates the customer why last month bill is high as compared to previous month. Also it explains the reasoning for high bill - customer used more roaming data and made more calls duing roaming. This led to increased bill. It suggest the customer to buy roaming plan called  Globetrotter Lite and explain the plan. Additionally it suggest the customer to disable the data roaming to provent accidental charges (read the text in below picture). 
+
+
 ![add kb](/static/module2images/bs60.png)
 
-4. Type `How to disable it`. Then it asks the customer to provide phone type - iphone or Android. Type `iphone` and hit enter. Agent provides the steps to disable data roaming (read the text in below picture).
+4. Copy and paste :code[How to disable it]{showCopyAction=true} and hit enter. Then it asks the customer to provide phone type - iphone or Android. Copy and paste :code[iphone]{showCopyAction=true} and hit enter. Agent provides the steps to disable data roaming (read the text in below picture).
 
 ![add kb](/static/module2images/bsp61.png)
 ![add kb](/static/module2images/bsp62.png)
 
-5. Type `okie`. Agent summarises the overall response (read the text in below picture). 
+5. Copy and paste :code[okie]{showCopyAction=true} and hit enter. Agent summarises the overall response (read the text in below picture). 
 
 ![add kb](/static/module2images/bsp63.png)
 

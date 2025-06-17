@@ -700,8 +700,8 @@ Resources:
 
         Derive the recommended list of offers and offer negotiation bands by running through the following steps in sequence:
         1. Find matching products by using the customer segmentation by calling get-product-recommendations action group.
-        4. Rank the matched products by aligning the priority based on the offer eligibility criteria provided in the input.
-        5. Determine the offer negotiation band by analyzing the customer profile and the recommended products using the action group get-offer-negotiation-bands. output from the action group should be populated in the json as for example: "offer_negotiation_band": 10
+        2. Rank the matched products by aligning the priority based on the offer eligibility criteria provided in the input.
+        3. Determine the offer negotiation band by analyzing the customer profile and the recommended products using the action group get-offer-negotiation-bands. output from the action group should be populated in the json as for example: "offer_negotiation_band": 10
 
         Do not use your own knowledge recommend products and derive offer negotiation bands. Use the tools provided to you in the action groups mentioned.
 

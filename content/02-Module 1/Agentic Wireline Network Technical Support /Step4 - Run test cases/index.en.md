@@ -5,26 +5,26 @@ weight : 120
 
 ## You will test the agent in following three scenarios. Before running these test cases make sure you have completed all the previous steps successfully. 
 
-###### Scenario1: Imagine you are a tier-1 broadband provider and you have deployed this agent to help your customers to troubleshoot network problems.One of your customers is experiencing slow upload and download speed.Let's use this agent to find out the root cause for this customer network slowness. 
+###### Scenario 1: Imagine you are a tier-1 broadband provider and you have deployed this agent to help your customers to troubleshoot network problems.One of your customers is experiencing slow upload and download speed.Let's use this agent to find out the root cause for this customer network slowness. 
 
 1. On the right side of the console, under **Test** click the drop down and select **networkfta: Version 1**. Now locate the chat window at the bottom.  Type `hi` and press enter. Agent will respond with welcome message and ask to enter `customer ID and secret key` for authentication purpose (read the text in below picture). 
 
 ![add kb](/static/module2images/t0.png)
 ![add kb](/static/module2images/nfta51.png)
 
-2. Paste following details in the chat **2000000006 357897** and hit enter. As you notice customer didn't provide the details like which of them is customer ID and secret key. It successfully authenticates the customer and then ask could you please tell me your network problem.Paste following query in chat window `why my network is slow today` and hit enter (read the text in below picture). 
+2. Paste following details in the chat :code[2000000006 357897]{showCopyAction=true} and hit enter. As you notice customer didn't provide the details like which of them is customer ID and secret key. It successfully authenticates the customer and then ask could you please tell me your network problem. Paste following query in chat window :code[why my network is slow today]{showCopyAction=true} and hit enter (read the text in below picture). 
 
 ![add kb](/static/module2images/nfta54.png)
 
-3. The agent provides the explanation that the customer has not paid the last month bill and this is the reason why customer's network speed is throttled. Now agent is requesting the customer to pay the bill and offers to help with payment instructions. Type `yes`(read the text in below picture). 
+3. The agent provides the explanation that the customer has not paid the last month bill and this is the reason why customer's network speed is throttled. Now agent is requesting the customer to pay the bill and offers to help with payment instructions. Type :code[yes]{showCopyAction=true} (read the text in below picture). 
 
 ![add kb](/static/module2images/nfta55.png)
 
-4. It asks which device you use like Windows, Mac or Android or similar. Enter `Samsung` in the chat and hit enter. Then it asks the customer which Samsung device you use like smartphone, tablet or computer. Type `phone` and hit enter (read the text in below picture).
+4. It asks which device you use like Windows, Mac or Android or similar. Enter :code[Samsung]{showCopyAction=true} in the chat and hit enter. Then it asks the customer which Samsung device you use like smartphone, tablet or computer. Type :code[phone]{showCopyAction=true} and hit enter (read the text in below picture).
 
 ![add kb](/static/module2images/nfta56.png)
 
-5. Agent provides steps to pay the bill and educates the customer that it may take 1hour to get the speed restored(read the text in below picture). Type `okie` and hit enter. And then type `paid`(read the text in below pictures). 
+5. Agent provides steps to pay the bill and educates the customer that it may take 1hour to get the speed restored(read the text in below picture). Type :code[okie]{showCopyAction=true} and hit enter. And then type :code[paid]{showCopyAction=true} (read the text in below pictures). 
 
 ![add kb](/static/module2images/nfta57.png)
 
@@ -40,40 +40,40 @@ weight : 120
 6. More functionalities can be added like send an SMS/EMAIL when speed is restored. 
 
 
-###### Scenario2: Imagine you are a tier-1 broadband provider and you have deployed this agent to help your customers to troubleshoot network problems. One of your customers is experiencing network outage. Let's use this agent to find out the root cause for this customer network outage.
+###### Scenario 2: Imagine you are a tier-1 broadband provider and you have deployed this agent to help your customers to troubleshoot network problems. One of your customers is experiencing network outage. Let's use this agent to find out the root cause for this customer network outage.
 1. Do a console refresh to load the new chat window page. On the right side of the console, under **Test** click the drop down and select **networkfta: Version 1**. Now locate the chat window at the bottom.  Type `hi` and press enter. Agent will respond with welcome message and ask to enter `customer ID and secret key` for authentication purpose (read the text in below pictures). 
 
 ![add kb](/static/module2images/t0.png)
 ![add kb](/static/module2images/nfta51.png)
 
-2. Paste following details in the chat **2000000008 357899** and hit enter. As you notice customer didn't provide the details like which of them is customer ID and secret key. It successfully authenticates the customer and then ask could you please tell me your network problem. Type `why my network is down` and hit enter (read the text in below picture).
+2. Paste following details in the chat :code[2000000008 357899]{showCopyAction=true} and hit enter. As you notice customer didn't provide the details like which of them is customer ID and secret key. It successfully authenticates the customer and then ask could you please tell me your network problem. Type :code[why my network is down]{showCopyAction=true} and hit enter (read the text in below picture).
 
 ![add kb](/static/module2images/nfta59.png)
 
-3. The agent provides the explanation that customer's modem is down and this is the reason for network outage. Also agent found that customer has not paid the last month bill which leads to speed throttling. And then explains even if the modem will be up you will experinece slow speed. Then it helps the customer to troubleshoot the modem step by step. Type `Yes` in chat window and hit enter.  (read the text in below picture). 
+3. The agent provides the explanation that customer's modem is down and this is the reason for network outage. Also agent found that customer has not paid the last month bill which leads to speed throttling. And then explains even if the modem will be up you will experinece slow speed. Then it helps the customer to troubleshoot the modem step by step. Type `Yes` in chat window and hit enter (read the text in below picture). 
 
 ![add kb](/static/module2images/nfta60.png)
 
-4. Then it ask the customer to check the power supply and verify the cable connection (read the text in below picture). Type `looks fine` and hit enter. 
+4. Then it ask the customer to check the power supply and verify the cable connection (read the text in below picture). Type :code[looks fine]{showCopyAction=true} and hit enter. 
 
 ![add kb](/static/module2images/t8.png)
 
-5. Then it suggests to reboot the modem(read the text in below picture). 
+5. Then it suggests to reboot the modem (read the text in below picture). 
 
 ![add kb](/static/module2images/t9.png) 
 
-6. Type `it works now`and hit enter.
+6. Type :code[it works now]{showCopyAction=true} and hit enter.
 7. Now agent educates the customer the network is back online but you will experience slow network. And request to make the payment. Then ask the customer whether he/she needs help with the payment(read the text in below picture). 
 
 ![add kb](/static/module2images/t10.png) 
 
-8. Type `Yes` and hit enter
+8. Type :code[Yes]{showCopyAction=true} and hit enter
 9. Agent asks the customer which device he/she is using currently 
-10. Type `iphone` and hit enter. It provide the steps how to make the payment using iphone (read the text in below picture). 
+10. Type :code[iphone]{showCopyAction=true} and hit enter. It provide the steps how to make the payment using iphone (read the text in below picture). 
 
 ![add kb](/static/module2images/nfta62.png) 
 
-12. Type `paid the bill` and hit enter. Agent educates the customer that it may take upto 1 hour to restore the speed(read the text in below picture). 
+12. Type :code[paid the bill]{showCopyAction=true} and hit enter. Agent educates the customer that it may take upto 1 hour to restore the speed(read the text in below picture). 
 
 ![add kb](/static/module2images/nfta63.png) 
 
@@ -85,23 +85,19 @@ weight : 120
 4. Similarly Agent uses bill payment knowledge base to help the customer pay the bill. Here we can make it more advance by sending the payment link in the chat or email the payment link on the fly. 
 5. More functionalities can be added like send an SMS/EMAIL when speed is restored. 
 
-###### Scenario3: Imagine you are a tier-1 broadband provider and you have deployed this agent to help your customers to troubleshoot network problems. One of your customers is experiencing network outage. Let's use this agent to find out the root cause for this customer network slowness. 
+###### Scenario 3: Imagine you are a tier-1 broadband provider and you have deployed this agent to help your customers to troubleshoot network problems. One of your customers is experiencing network outage. Let's use this agent to find out the root cause for this customer network slowness. 
 1. Do a console refresh to load the new chat window page. On the right side of the console, under **Test** click the drop down and select **networkfta: Version 1**. Now locate the chat window at the bottom.  Type `hi` and press enter. Agent will respond with welcome message and ask to enter `customer ID and secret key` for authentication purpose (read the text in below pictures). 
 
 ![add kb](/static/module2images/t0.png)
 ![add kb](/static/module2images/nfta51.png)
 
-2. Paste following details in the chat **2000000002 357893** and hit enter. Do a console refresh to load the new chat window page. On the right side of the console, locate the chat window at the bottom. Type `why my network is down` and the agent responds with a greeting message and ask for `customer ID and secret key` for authentication(read the text in below picture). 
-
-![add kb](/static/module2images/t11.png)
-
-3. Copy and paste following details in the chat **2000000002 357893**. As you notice customer didn't provide the details like which of them is customer ID and secret key. It successfully authenticates the customer and then ask could you please tell me your network problem. Type `why my network is down` and hit enter (read the text in below picture).
+2. Copy and paste following details in the chat :code[2000000002 357893]{showCopyAction=true} and hit enter. As you notice customer didn't provide the details like which of them is customer ID and secret key. It successfully authenticates the customer and then ask could you please tell me your network problem. Type :code[why my network is down]{showCopyAction=true} and hit enter (read the text in below picture).
 
 ![add kb](/static/module2images/nfta64.png)
 
-4. Agent found the node connecting to the customer modem is down. It educates the customer we are working to fix the issue(read the text in below picture). 
+3. Agent found the node connecting to the customer modem is down. It educates the customer we are working to fix the issue(read the text in below picture). 
 
-![add kb](/static/module2images/t12.png)
+![add kb](/static/module2images/nfta211.png)
 
 ###### Now let's understand how agent found the root cause (For each agent response click the associated **Show Trace**)
 1. First agent identified the customer ID and secret key from the customer response. And then agent performed the authentication by invoking the authentication API. In your case it could your customer database which holds customer authentication details. It has full flexibility to make authentication more robust like 2 factor authentication. Sending OTP on registered mobile number or email and entering  those details in the chat.

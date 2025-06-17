@@ -5,11 +5,11 @@ weight : 20
 
 In this section you continue on to create the flow using the the offer eligibility prompt, customer segmentation agent, and product recommendation agent that we examined in the previous section.
 
-**Step 4:** Create the flow for product recommender
+**Step 1:** Create the flow for product recommender
 
 a. Click on the **Flows** link from the left hand panel
 
-![Edit in Agent Builder Customer Segmentation](/static/Module3/images/prompt-flow-lefthandpanel-link.png)
+![Edit in Agent Builder Customer Segmentation](/static/Module3/images/prompt-flow-lefthandpanel.png)
 
 Click on the **Creat Flow** button. 
 
@@ -27,14 +27,20 @@ This should take you to the following screen for the flow builder.
 
 ![Prompt flow builder](/static/Module3/images/prompt-flow-builder.png)
 
+The flow builder screen has 3 parts:
+
+1. The nodes and configuration pane - This is found on the left side of the screen.
+2. The flow canvas - This is the canvas in the middle of the screen.
+3. The test flow pane - This is found on the right side of the screen.
+
 Now we shall start adding nodes and links to the flow in the following steps.
 
 ---
 
-**Step 5** Add a lambda function to get the customer journey data.
+**Step 2** Add a lambda function to get the customer journey data.
 
 
-a. On the flow builder screen, Drag and drop the **Lambda function** node on the canvas. 
+a. From the flow builder node list on the left, Drag and drop the **Lambda function** node on the canvas. 
 
 ![Drag and Drop lambda](/static/Module3/images/prompt-flow-draganddrop-lambdafunction.png) 
 
@@ -42,9 +48,9 @@ Click on it and then on the configure screen, provide the following details:
 
 
 
-**Node name** - `getCustomerJourney`
+**Node name** - :code[`getCustomerJourney`]{showCopyAction=true}
 
-**Lambda function** - choose **GetCustomerJourney**, leave the version as $LATEST, leave the input fields as it is, in the **output** field choose **Object** as the **Type**.
+**Lambda function** - choose :code[**GetCustomerJourney**]{showCopyAction=true}, leave the version as $LATEST, leave the input fields as it is, in the **output** field choose **Object** as the **Type**.
 
 ![Configure get customer journey lambda](/static/Module3/images/prompt-flow-getcustomerjourney-lambda.png) 
 
@@ -80,7 +86,7 @@ The resultant screen should look like the below:
 
 ---
 
-**Step 6** Add the offer eligibility checker prompt.
+**Step 3** Add the offer eligibility checker prompt.
 
 a. On the prompt builder screen, drag and drop the **Prompts** node on the canvas. 
 
@@ -88,9 +94,9 @@ a. On the prompt builder screen, drag and drop the **Prompts** node on the canva
 
 
 Click on it and then on the configure screen, provide the following details:
-**Node name** - `OfferEligibilityChecker`
+**Node name** - :code[`OfferEligibilityChecker`]{showCopyAction=true}
 
-**Prompt** - OfferEligibilityChecker
+**Prompt** - :code[OfferEligibilityChecker]{showCopyAction=true}
 
 **Input** - change the Type field to `Object`.
 
@@ -98,7 +104,9 @@ Click on it and then on the configure screen, provide the following details:
 ![Prompt flow add prompt](/static/Module3/images/prompt-flow-configure-prompt.png)
 
 
-![Prompt flow add prompt](/static/Module3/images/prompt-flow-prompt-input-config.png)
+
+![Prompt flow add prompt](/static/Module3/images/prompt-flow-prompt-inputobjecttype.png)
+
 
 
 Leave the rest of the fields as they are.
@@ -142,13 +150,13 @@ Rename the output node to **OfferEligibilityCheckOutput**
 
 ---
 
-**Step 7** Add a lambda function to extract the offer eligibilty payload.
+**Step 4** Add a lambda function to extract the offer eligibilty payload.
 
 a. On the flow builder screen, Drag and drop the **Lambda function** node on the canvas. Click on it and then on the configure screen, provide the following details:
 
-**Node name** - `OfferEligibilityExtractor`
+**Node name** - :code[`OfferEligibilityExtractor`]{showCopyAction=true}
 
-**Lambda function** - choose OfferEligibilityExtractor, leave the version as $LATEST, leave the input fields as it is, in the **output** field choose **Object** as the **Type**.
+**Lambda function** - choose :code[OfferEligibilityExtractor]{showCopyAction=true}, leave the version as $LATEST, leave the input fields as it is, in the **output** field choose **Object** as the **Type**.
 
 
 ![Offer eligibility extractor lambda](/static/Module3/images/prompt-flow-offereligibilityextractorlambda.png) 
@@ -167,7 +175,7 @@ d. Click on the rearrange icons button to rearrange the nodes and connectors so 
 
 ---
 
-**Step 8** Add a condition node to check if the offer eligibilty is True or False
+**Step 5** Add a condition node to check if the offer eligibilty is True or False
 
 a. On the prompt builder screen, drag and drop the **Condition** node on the canvas.
 
@@ -178,15 +186,15 @@ a. On the prompt builder screen, drag and drop the **Condition** node on the can
 
 Click on it and then on the configure screen, provide the following details:
 
-**Node Name** - `OfferEligibilityCheckerCondition`
+**Node Name** - :code[`OfferEligibilityCheckerCondition`]{showCopyAction=true}
 
-**Input Name** - `offerEligible`
+**Input Name** - :code[`offerEligible`]{showCopyAction=true}
 
-**Input Type** - `Boolean`
+**Input Type** - :code[`Boolean`]{showCopyAction=true}
 
-**Expression** - `$.data.offer_eligible` (this is an inbuilt json field extractor expression that extracts the value of the offer_eligible field from the json output of the offerEligibilityExtractor lambda function).
+**Expression** - :code[`$.data.offer_eligible`]{showCopyAction=true} (this is an inbuilt json field extractor expression that extracts the value of the offer_eligible field from the json output of the offerEligibilityExtractor lambda function).
 
-**Condition** - In the condition field enter `offerEligible == true`.
+**Condition** - In the condition field enter :code[`offerEligible == true`]{showCopyAction=true}.
 
 
 ![Add condition node on the prompt flow](/static/Module3/images/prompt-flow-ofecheck-condition.png)
@@ -205,7 +213,7 @@ b. Connect the output of the offerEligibilityExtractor lambda function node to t
 
 ---
 
-**Step 9** Add a flow output node for observability of the offerEligibilityExtractor output
+**Step 6** Add a flow output node for observability of the offerEligibilityExtractor output
 
 a. Drag and drop the output node on the canvas.
 
@@ -213,9 +221,9 @@ a. Drag and drop the output node on the canvas.
 ![Add condition node output ofe](/static/Module3/images/prompt-flow-add-flow-output-ofe.png)
 
 
-b. Name the node `offerEligibilityExtractorOutput`.
+b. Name the node :code[`offerEligibilityExtractorOutput`]{showCopyAction=true}.
 
-Configure the output data type as **Object**
+Configure the output nodes' input field data type as **Object**
 
 
 ![Add condition node output ofe](/static/Module3/images/prompt-flow-ofeoutput-config.png)
@@ -235,11 +243,11 @@ d. Connect the **"If conditions are false"** output of the condition node to the
 
 ---
 
-**Step 10** Add a Lambda function node to convert the json output from the OfferEligibilityExtractor node to string.
+**Step 7** Add a Lambda function node to convert the json output from the OfferEligibilityExtractor node to string.
 
 a. Drag and drop the lambda function node on the canvas.
 
-b. Provide the node name as `jsonToString`, choose `JsonToString` in the Lambda function field, choose `object` in the input type field.
+b. Provide the node name as :code[`jsonToString`]{showCopyAction=true}, choose :code[`JsonToString`]{showCopyAction=true} in the Lambda function field, choose `object` in the input type field.
 
 
 ![Json to String Lambda function](/static/Module3/images/prompt-flow-jsontostring-lambda.png)
@@ -263,7 +271,7 @@ d. Connect the True output node connector of the OfferEligibilityCheckerConditio
 
 ---
 
-**Step 11** Add a Agent node to derive customer segments from the customer journey data.
+**Step 8** Add a Agent node to derive customer segments from the customer journey data.
 
 a. Drag and drop the Agent node on the canvas.
 
@@ -271,10 +279,16 @@ a. Drag and drop the Agent node on the canvas.
 ![Add agent](/static/Module3/images/prompt-flow-add-agent.png)
 
 
-b. Provide the node name as `customerSegmentFinder`, Agent as `CustomerSegmentationAgent`, and Agent Alias as `AgentTestAlias`.
+b. Provide the node name as :code[`customerSegmentFinder`]{showCopyAction=true}, Agent as :code[`CustomerSegmentationAgent`]{showCopyAction=true}, and Agent Alias as `AgentTestAlias`.
 
 
 ![Add customer segemntfinder agent config](/static/Module3/images/prompt-flow-customersegmentfinder-agent-config.png)
+
+
+Make sure to uncheck the use of optional prompt attributes and session attributes as shown below:
+
+
+![Add customer segemntfinder agent config](/static/Module3/images/prompt-flow-uncheck-optional-attributes.png)
 
 
 c. Connect the output of the `jsonToString` lambda function node to the input of the `customerSegmentFinder` agent node.
@@ -283,11 +297,11 @@ c. Connect the output of the `jsonToString` lambda function node to the input of
 
 ---
 
-**Step 12** Add a Flow output node to record the output of the customer segement finder agent.
+**Step 9** Add a Flow output node to record the output of the customer segement finder agent.
 
 a. Drag and drop the output node on the canvas.
 
-b. Name the node `customerSegementationOutput`.
+b. Name the node :code[`customerSegementationOutput`]{showCopyAction=true}.
 
 
 ![Customersegmentfinder agent output](/static/Module3/images/prompt-flow-customer-segmentation-output.png)
@@ -303,11 +317,11 @@ c. Connect the output of the `customerSegmentFinder` agent to the `customerSegem
 
 ---
 
-**Step 13** Add an agent node to create product recommendations, rank them, and derive offer negotiation band.
+**Step 10** Add an agent node to create product recommendations, rank them, and derive offer negotiation band.
 
 a. Drag and drop the Agent node on the canvas.
 
-b. Provide the node name as `ProductRecommender`, Agent as `ProductRecommendationAgent`, and Agent Alias as `AgentTestAlias`.
+b. Provide the node name as :code[`ProductRecommender`]{showCopyAction=true}, Agent as :code[`ProductRecommendationAgent`]{showCopyAction=true}, and Agent Alias as :code[`AgentTestAlias`]{showCopyAction=true}.
 
 
 ![Add productrecommender agent](/static/Module3/images/prompt-flow-productrecommender-agent-add.png)
@@ -319,11 +333,11 @@ c. Connect the output of the `customerSegmentFinder` agent node to the input of 
 
 ---
 
-**Step 14** Add an output node to record the output of the productRecommender agent.
+**Step 11** Add an output node to record the output of the productRecommender agent.
 
 a. Drag and drop the output node on the canvas.
 
-b. Name the node `productRecommenderOutput`.
+b. Name the node :code[`productRecommenderOutput`]{showCopyAction=true}.
 
 c. Connect the output of the `productRecommender` agent to the `customerSegementationOutput` Flow output node input.
 
@@ -338,11 +352,11 @@ c. Connect the output of the `productRecommender` agent to the `customerSegement
 
 The final flow should look as follows:
 
-![Add product recommender agent output](/static/Module3/images/prompt-flow-final.png).
+![Add product recommender agent output](/static/Module3/images/prompt-flow-final.png)
 
 Click on **Save**. This should return a notification as shown below:
 
-![Add product recommender agent output](/static/Module3/images/prompt-flow-save-confirmation.png).
+![Add product recommender agent output](/static/Module3/images/prompt-flow-save-confirmation.png)
 
 
 **Congrats, you have now created your product recommender flow successfully.** In the next section you will test this flow from the Amazon Bedrock console.

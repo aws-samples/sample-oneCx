@@ -5,7 +5,9 @@ weight: 0
 
 **Welcome to the "Build agentic workflows for customer self service" workshop!**
 
-:image[Workshop Image]{src="/static/TLC302-WorkshopImage.jpeg" width = 800 height = 700 disableZoom=true}
+
+:image[Workshop Image]{src="/static/TLC302.png" width = 600 height = 600 disableZoom=true}
+
 
 In today's digital-first world, providing exceptional customer service is crucial for businesses to thrive. This workshop will guide you through the process of leveraging generative AI and AWS services to create powerful, agentic workflows that enhance customer self-service experiences in both care and sales contexts.
 
@@ -32,9 +34,9 @@ The workshop is divided into four main modules:
 
 
 1. **Introduction** - Explore your customer journey data foundations using UI and natural language (Estimated time: 10 minutes)
-2. **Module 1** - Extract insights from call/chat transcripts using prompt flows (Estimated time: 15 minutes)
-3. **Module 2** - Customer support using agentic workflows (Estimated time: 15 minutes)
-4. **Module 3** - Product offer recommendations and negotiation using agentic workflows (Estimated time: 20 minutes)
+2. **Module 1** - Customer support using agentic workflows (Estimated time: 15 minutes)
+3. **Module 2** - Product offer recommendations and negotiation using agentic workflows (Estimated time: 20 minutes)
+4. **Bonus Module** - Extract insights from call/chat transcripts using prompt flows (Estimated time: 15 minutes)
 
 By the end of this workshop, you'll have a solid understanding of how to implement generative AI-powered solutions that can significantly improve customer self-service experiences, leading to increased satisfaction and operational efficiency.
 

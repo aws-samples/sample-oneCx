@@ -21,10 +21,6 @@ Give it a try!
 
 ![Bill Shock](/static/Module1Images/TestPromptInputA.png)
 
-You should receive the following:
-
-![Success](/static/Module1Images/SuccessfulTest.png)
-
 Let's take a look under the hood to see what the Prompt Flow orchestrated to run two Prompts and one AWS Lambda to achieve the outcomes of:
 
 1.  Create a synthetic contact center transcript based on the topic of "bill shock"
