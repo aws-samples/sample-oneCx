@@ -2,7 +2,7 @@
 title : " Data Load "
 weight : 90
 ---
-## Section1
+## Section 1
 ###### In this section you will create Amazon RDS (MySQL) tables. Then you will load the customer authentication data, broadband plans for each customer, bill payment details, modem status and node status details into respective RDS tables. AWS Step Functions is used to orchestrate the data load related tasks. 
 
 1. Inside AWS Console Search Bar (at the top of AWS Console) type **Step functions**. And under **Services** click to open it (see the red arrows in below picture). 

@@ -5,15 +5,22 @@ weight : 30
 
 In this section you test the flow using the Amazon bedrock console. The objective of this section is to test that the flow executes and produces the offer eligibility check, customer segmentation, and product recommendations as expected.
 
+### Test your flow
 
-**Step 15** Test your flow
+
+To bring back the test flow section on the screen, please click on the icon on the top right as follows:
+
+
+![Test prompt flow](/static/Module3/images/prompt-flow-test-icon.png)
+
+
 
 a. Enter the following json payload in the **Test Flow** window on the right of the Prompt flow builder page.
 
-`{"customer_id":14}`
+:code[`{"customer_id":14}`]{showCopyAction=true}
 
 
-![Test prompt flow](/static/Module3/images/prompt-flow-test-prompt-flow.png).
+![Test prompt flow](/static/Module3/images/prompt-flow-test-prompt-flow.png)
 
 
 b. The processing of the flow goes through a number of LLM inferences so it can take a upto 2 minutes to complete. You should start seeing intermediate outputs from the flow in a few seconds as follows:

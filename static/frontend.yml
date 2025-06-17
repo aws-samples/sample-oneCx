@@ -1395,7 +1395,7 @@ Resources:
                   elif offered_discount > max_discount:
                       best_possible_price = initial_price * (1 - max_discount / 100)
                       return {
-                          "message": f"I apologize, but I cannot go as low as {format_price(price_offer)}. "
+                          "message": f"I apologize, but I cannot go as low as that. "
                           f"The best price I can offer you is {format_price(best_possible_price)} per month. "
                           f"This includes all our {product['product_offering_name']} features. "
                           "Would you like to accept this offer?",

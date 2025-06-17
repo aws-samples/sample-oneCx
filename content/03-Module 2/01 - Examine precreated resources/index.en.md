@@ -6,6 +6,8 @@ weight : 10
 
 ::alert[This section will show you how the prompts and agents for offer eligibiliity check, customer segmentation, and product recommendation have been configured. We would recommend spending about 5min on this section. We will opensource the code soon after `re:Invent 2024` so that you can have a deeper look and reuse in your projects as appropriate.]
 
+::expand[Answer: 42]{header="Question: What is the meaning of life?"}
+
 
 ## Explore the Customer Offer Eligibility checker prompt
 
@@ -38,7 +40,7 @@ Examine the prompt and its format. This prompt analyzes the customer journey to 
 
 Notice how the xml tags for context, objective, style_and_tone, audience, instructions, customer_journey_data_columns, customer_journey_data , and event_type_definitions have been used based on the best practises of prompting Anthropic Claude Sonnet v3.
 
-:::code{showCopyAction=true showLineNumbers=true language=xml}
+:::code{showCopyAction=false showLineNumbers=false language=xml}
 <context>
 You are analyzing customer journey data to determine offer eligibility. The data contains events with types, details, and timestamps.
 </context>
@@ -105,7 +107,6 @@ a. Navigate to the Agents menu from the left hand panel:
 
 :::alert{header="Note" type="warning"}
 You may see the following popup when you click on Agents. Please click "Leave" here to navigate away from the Promt Builder screen without making any unintentional changes.
-![Examine agents](/static/Module3/images/examine-agent-leave-warning.png)
 :::
 
 
@@ -134,7 +135,7 @@ This should open the AWS lambda console with the lambda function **CustomerSegme
 
 Scroll down in the **Code source** section of the lambda function to examine the prompts for the call to the LLM hosted on Amazon Bedrock:
 
-:::code{showCopyAction=true showLineNumbers=true language=python}
+:::code{showCopyAction=false showLineNumbers=false language=python}
 system_prompt = """You are an expert in analyzing customer journeys and categorizing customers based on their behavior and usage patterns.
     You can extract relevant information from event descriptions,calculate averages accurately, and use the segment configuration to classify customers"""
     
@@ -176,7 +177,7 @@ Please structure your response as follows:
 
 As you see above the lambda function retrieves the customer journey and the segmentation config that the business has defined (shown below). This segmentation config is often a hybrid output of ML models/analytics algorithms/business decisions which determine how a particular component must be characterized. The prompt uses this information to analyze the customer journey in order to categorize the customer for each component of the customer segmentation config.
 
-:::code{showCopyAction=true showLineNumbers=true language=json}
+:::code{showCopyAction=false showLineNumbers=false language=json}
 {
   "spend_level": {
     "high": 100,
@@ -280,7 +281,7 @@ For each of the action groups click into them and navigate to the lambda functio
 
 **get-product-recommendations action group**
 
-:::code{showCopyAction=true showLineNumbers=true language=python}
+:::code{showCopyAction=false showLineNumbers=false language=python}
 # Prepare the prompt for Claude 3 Sonnet
     prompt = f"""
     You are a product recommendation specialist tasked with finding the best matches for a customer based on their segmentation data. Follow these instructions carefully, executing each step in order:
@@ -339,7 +340,7 @@ For each of the action groups click into them and navigate to the lambda functio
 
 **get-offer-negotiation-band action group**
 
-:::code{showCopyAction=true showLineNumbers=true language=python}
+:::code{showCopyAction=false showLineNumbers=false language=python}
 user_message = {
         "role": "user",
         "content": f"""You are an AI assistant for a telecom company. Analyze the following product offerings and customer profile to provide recommendations.

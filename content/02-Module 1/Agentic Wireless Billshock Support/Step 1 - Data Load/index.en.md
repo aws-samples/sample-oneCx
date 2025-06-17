@@ -3,7 +3,7 @@ title : " Billshock Data Load "
 weight : 40
 ---
 
-## Section1
+## Section 1
 ###### In this section you will create Amazon RDS (MySQL) tables. Then you will load the customer authentication data (synthetic data) into Amazon DynamoDB table. And then you will load customer billing and usage details like roaming data and associated charges, roaming call duration and associated charges and other customer details into RDS tables. AWS Step Functions is used to orchestrate the data load related tasks. 
 
 1. Inside AWS Console Search Bar (at the top of AWS Console) type **Step functions**. And under **Services** click to open it (see the red arrows in below picture). 
