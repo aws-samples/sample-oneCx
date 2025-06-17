@@ -1,33 +1,43 @@
-# Aws-workshop-template
+---
+title: "Build GenAI Agentic workflows for customer self-service"
+weight: 0
+---
 
-## Repo structure
+**Welcome to the "Build agentic workflows for customer self service" workshop!**
 
-```bash
-.
-├── contentspec.yaml                  <-- Specifies the version of the content
-├── README.md                         <-- This instructions file
-├── static                            <-- Directory for static assets to be hosted alongside the workshop (ie. images, scripts, documents, etc) 
-└── content                           <-- Directory for workshop content markdown
-    └── index.en.md                   <-- At the root of each directory, there must be at least one markdown file
-    └── introduction                  <-- Directory for workshop content markdown
-        └── index.en.md               <-- Markdown file that would be render 
-```
 
-## What's Included
+:image[Workshop Image]{src="/static/TLC302.png" width = 600 height = 600 disableZoom=true}
 
-This project contains the following folders:
-* `static`: This folder contains static assets to be hosted alongside the workshop (ie. images, scripts, documents, etc) 
-* `content`: This is the core workshop folder. This is generated as HTML and hosted for presentation for customers.
 
-## How to create content
+In today's digital-first world, providing exceptional customer service is crucial for businesses to thrive. This workshop will guide you through the process of leveraging generative AI and AWS services to create powerful, agentic workflows that enhance customer self-service experiences in both care and sales contexts.
 
-Under the `content` folder, Each folder requires at least one `index.<lang>.md` file. The file will have a header
+Throughout this workshop, you'll gain hands-on experience with Amazon Bedrock, AWS's managed service for Generative AI, along with other key AWS services such as AWS Lambda, Amazon Aurora, Amazon OpenSearch, and Amazon API Gateway. These tools will enable you to build intelligent, responsive systems that can understand and address customer needs efficiently.
 
-```aidl
-+++
-title = "AWS Workshop Template"
-weight = 0
-+++
-```
+This workshop is designed for:
 
-The title will be the title on navigation panel on the left. The weight determines the order the page appears in the navigation panel.
+
+* Customer Experience Professionals
+* Data Scientists and Machine Learning Engineers
+* Solution Architects
+* IT and DevOps teams
+* Product Managers and Business Analysts
+
+What you'll learn:
+
+
+1. How to leverage a data foundation that captures customer journeys across various interaction channels
+2. Techniques for extracting valuable insights from customer interactions using natural language processing
+3. Building and orchestrating multi-agent workflows for automated problem-solving
+4. Creating AI-powered product recommendation and deal negotiation systems
+
+The workshop is divided into four main modules:
+
+
+1. **Introduction** - Explore your customer journey data foundations using UI and natural language (Estimated time: 10 minutes)
+2. **Module 1** - Customer support using agentic workflows (Estimated time: 15 minutes)
+3. **Module 2** - Product offer recommendations and negotiation using agentic workflows (Estimated time: 20 minutes)
+4. **Bonus Module** - Extract insights from call/chat transcripts using prompt flows (Estimated time: 15 minutes)
+
+By the end of this workshop, you'll have a solid understanding of how to implement generative AI-powered solutions that can significantly improve customer self-service experiences, leading to increased satisfaction and operational efficiency.
+
+Let's begin by exploring the customer journey data foundation that has been pre-loaded for you, and learn how to extract insights using Amazon Bedrock's natural language capabilities.
